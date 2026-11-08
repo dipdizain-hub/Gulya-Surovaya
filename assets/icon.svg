@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Книга вязания спицами">
+  <rect width="512" height="512" rx="108" fill="#9B2C2C"/>
+  <rect x="24" y="24" width="464" height="464" rx="88" fill="none" stroke="#FBF7F0" stroke-width="8" opacity="0.35"/>
+  <!-- Спицы -->
+  <g stroke="#FBF7F0" stroke-width="18" stroke-linecap="round">
+    <line x1="104" y1="408" x2="408" y2="104"/>
+    <line x1="104" y1="104" x2="408" y2="408"/>
+  </g>
+  <circle cx="416" cy="96" r="18" fill="#FFF0C2"/>
+  <circle cx="96" cy="96" r="18" fill="#FFF0C2"/>
+  <!-- Клубок пряжи -->
+  <circle cx="256" cy="268" r="126" fill="#FBF7F0" stroke="#9B2C2C" stroke-width="10"/>
+  <path d="M154 220 C210 175, 305 175, 358 220" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
+  <path d="M140 268 C210 222, 302 222, 372 268" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
+  <path d="M156 318 C216 276, 298 276, 356 318" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
+  <path d="M205 154 C245 220, 245 310, 200 378" fill="none" stroke="#225B40" stroke-width="10" stroke-linecap="round"/>
+  <path d="M306 154 C268 220, 268 310, 312 378" fill="none" stroke="#225B40" stroke-width="10" stroke-linecap="round"/>
+</svg>
