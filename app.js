@@ -63,6 +63,11 @@
       singleTapTimer: null,
       isLandscapeLocked: false
     },
+    videoModal: {
+      isOpen: false,
+      preferLandscape: true,
+      enteredNativeFullscreen: false
+    },
     toastTimer: null
   };
 
@@ -1631,7 +1636,7 @@
     if (!url) return null;
 
     if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)) {
-      return { kind: "video", src: url };
+      return { kind: "video", src: url, rawUrl: url };
     }
 
     var ytMatch =
@@ -1639,8 +1644,11 @@
       null;
     if (ytMatch && ytMatch[1]) {
       return {
-        kind: "iframe",
-        embedUrl: "https://www.youtube.com/embed/" + ytMatch[1] + "?rel=0&playsinline=1"
+        kind: "youtube",
+        ytId: ytMatch[1],
+        posterUrl: "https://i.ytimg.com/vi/" + ytMatch[1] + "/hqdefault.jpg",
+        embedUrl: "https://www.youtube.com/embed/" + ytMatch[1] + "?rel=0&playsinline=0&fs=1",
+        rawUrl: "https://www.youtube.com/watch?v=" + ytMatch[1]
       };
     }
 
@@ -1648,22 +1656,150 @@
     if (rtMatch && rtMatch[1]) {
       return {
         kind: "iframe",
-        embedUrl: "https://rutube.ru/play/embed/" + rtMatch[1]
+        embedUrl: "https://rutube.ru/play/embed/" + rtMatch[1],
+        rawUrl: url
       };
     }
 
     if (url.indexOf("video_ext.php") !== -1) {
-      return { kind: "iframe", embedUrl: url };
+      return { kind: "iframe", embedUrl: url, rawUrl: url };
     }
     var vkMatch = url.match(/(?:vk\.com|vkvideo\.ru)\/video(-?\d+)_(\d+)/i);
     if (vkMatch) {
       return {
         kind: "iframe",
-        embedUrl: "https://vk.com/video_ext.php?oid=" + vkMatch[1] + "&id=" + vkMatch[2] + "&hd=2"
+        embedUrl: "https://vk.com/video_ext.php?oid=" + vkMatch[1] + "&id=" + vkMatch[2] + "&hd=2",
+        rawUrl: url
       };
     }
 
-    return { kind: "iframe", embedUrl: url };
+    return { kind: "iframe", embedUrl: url, rawUrl: url };
+  }
+
+  function syncVideoModalOrientation() {
+    var modal = document.getElementById("video-modal");
+    if (!modal || !runtime.videoModal.isOpen) return;
+    var isPortraitViewport = window.innerHeight > window.innerWidth;
+    var shouldRotateCss = runtime.videoModal.preferLandscape && isPortraitViewport;
+    modal.classList.toggle("is-landscape-rotated", shouldRotateCss);
+  }
+
+  function tryLockLandscapeOrientation() {
+    if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+      try {
+        window.screen.orientation
+          .lock("landscape")
+          .then(function () {
+            setTimeout(syncVideoModalOrientation, 90);
+          })
+          .catch(function () {
+            syncVideoModalOrientation();
+          });
+      } catch (e) {
+        syncVideoModalOrientation();
+      }
+    }
+  }
+
+  function openVideoModal(embedUrl, rawUrl, title) {
+    var modal = document.getElementById("video-modal");
+    var stage = document.getElementById("video-modal-stage");
+    var extLink = document.getElementById("video-external-link");
+    if (!modal || !stage || !embedUrl) return;
+
+    stopTts();
+
+    var sep = embedUrl.indexOf("?") === -1 ? "?" : "&";
+    var autoplayUrl = embedUrl + sep + "autoplay=1";
+
+    runtime.videoModal.isOpen = true;
+    runtime.videoModal.preferLandscape = true;
+    runtime.videoModal.enteredNativeFullscreen = false;
+
+    if (extLink) {
+      extLink.href = rawUrl || embedUrl;
+    }
+
+    stage.innerHTML =
+      '<iframe src="' +
+      escapeHtml(autoplayUrl) +
+      '" title="' +
+      escapeHtml(title || "Видеоурок") +
+      '" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" allowfullscreen></iframe>';
+
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    syncVideoModalOrientation();
+
+    var reqFs =
+      modal.requestFullscreen ||
+      modal.webkitRequestFullscreen ||
+      modal.msRequestFullscreen ||
+      null;
+
+    if (reqFs) {
+      try {
+        var fsPromise = reqFs.call(modal);
+        if (fsPromise && typeof fsPromise.then === "function") {
+          fsPromise
+            .then(function () {
+              runtime.videoModal.enteredNativeFullscreen = true;
+              tryLockLandscapeOrientation();
+              setTimeout(syncVideoModalOrientation, 120);
+            })
+            .catch(function () {
+              syncVideoModalOrientation();
+            });
+        } else {
+          tryLockLandscapeOrientation();
+        }
+      } catch (e) {
+        syncVideoModalOrientation();
+      }
+    } else {
+      tryLockLandscapeOrientation();
+    }
+  }
+
+  function closeVideoModal() {
+    var modal = document.getElementById("video-modal");
+    var stage = document.getElementById("video-modal-stage");
+    runtime.videoModal.isOpen = false;
+    runtime.videoModal.enteredNativeFullscreen = false;
+
+    if (stage) {
+      stage.innerHTML = "";
+    }
+    if (modal) {
+      modal.hidden = true;
+      modal.classList.remove("is-landscape-rotated");
+    }
+
+    if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+      try {
+        window.screen.orientation.unlock();
+      } catch (e) {}
+    }
+
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl && fsEl === modal) {
+      var exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exitFs) {
+        try {
+          exitFs.call(document).catch(function () {});
+        } catch (e) {}
+      }
+    }
+
+    if (!runtime.chartModal.isOpen && !runtime.favPopupOpen) {
+      document.body.style.overflow = "";
+    }
+  }
+
+  function toggleVideoModalRotation() {
+    if (!runtime.videoModal.isOpen) return;
+    runtime.videoModal.preferLandscape = !runtime.videoModal.preferLandscape;
+    syncVideoModalOrientation();
   }
 
   function renderVideosHTML(article) {
@@ -1674,6 +1810,45 @@
       .map(function (v) {
         var parsed = parseVideoSource(v.url);
         if (!parsed) return "";
+
+        if (parsed.kind === "youtube") {
+          var posterImg = v.poster || parsed.posterUrl;
+          return (
+            '<div class="video-card no-print">' +
+            '<span class="video-card-badge">▶ Видеоурок</span>' +
+            '<h3 class="video-card-title">' +
+            escapeHtml(v.title || "Видеоурок") +
+            "</h3>" +
+            (v.subtitle
+              ? '<p class="video-card-sub">' + escapeHtml(v.subtitle) + "</p>"
+              : "") +
+            '<button type="button" class="video-launch-btn" data-action="open-video-fullscreen" data-embed="' +
+            escapeHtml(parsed.embedUrl) +
+            '" data-raw-url="' +
+            escapeHtml(parsed.rawUrl) +
+            '" data-title="' +
+            escapeHtml(v.title || "Видеоурок") +
+            '" aria-label="Смотреть во весь экран: ' +
+            escapeHtml(v.title || "Видеоурок") +
+            '">' +
+            '<img src="' +
+            escapeHtml(posterImg) +
+            '" alt="" class="video-launch-poster" loading="lazy">' +
+            '<span class="video-launch-scrim">' +
+            '<span class="video-play-circle" aria-hidden="true">▶</span>' +
+            '<span class="video-landscape-hint">Во весь экран · горизонтально</span>' +
+            "</span>" +
+            "</button>" +
+            '<button type="button" class="btn btn-primary btn-block" data-action="open-video-fullscreen" data-embed="' +
+            escapeHtml(parsed.embedUrl) +
+            '" data-raw-url="' +
+            escapeHtml(parsed.rawUrl) +
+            '" data-title="' +
+            escapeHtml(v.title || "Видеоурок") +
+            '">▶ Смотреть во весь экран</button>' +
+            "</div>"
+          );
+        }
 
         var playerHtml =
           parsed.kind === "video"
@@ -1686,7 +1861,7 @@
               escapeHtml(parsed.embedUrl) +
               '" title="' +
               escapeHtml(v.title || "Видеоурок") +
-              '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+              '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" allowfullscreen></iframe>';
 
         return (
           '<div class="video-card no-print">' +
@@ -1845,7 +2020,7 @@
 
     var extraPhotos = (article.photos || []).slice(1);
     var galleryHtml = extraPhotos.length
-      ? '<section class="photos-stack">' +
+      ? '<section id="photos-anchor" class="photos-stack">' +
         extraPhotos
           .map(function (ph) {
             return (
@@ -1868,6 +2043,40 @@
             );
           })
           .join("") +
+        "</section>"
+      : "";
+
+    var hasCharts = (article.charts || []).length > 0;
+    var hasGlossary = (article.glossary || []).length > 0;
+    var hasPdf = Boolean(article.originalPdf);
+    var pdfFilename = article.slug + ".pdf";
+
+    var jumpBtnHtml = hasCharts
+      ? '<a href="#charts-anchor" class="btn btn-sand" data-action="jump-charts">Перейти к схемам</a>'
+      : extraPhotos.length
+      ? '<a href="#photos-anchor" class="btn btn-sand" data-action="jump-photos">Перейти к фото (' +
+        extraPhotos.length +
+        ")</a>"
+      : "";
+
+    var pdfActionBtnHtml = hasPdf
+      ? '<a href="' +
+        escapeHtml(article.originalPdf) +
+        '" download="' +
+        escapeHtml(pdfFilename) +
+        '" target="_blank" rel="noopener" class="btn btn-sand">📄 Скачать оригинал (PDF)</a>'
+      : "";
+
+    var chartsSectionHtml = hasCharts
+      ? '<section id="charts-anchor" class="charts-flow">' + chartsHtml + "</section>"
+      : "";
+
+    var glossarySectionHtml = hasGlossary
+      ? '<section class="glossary-section">' +
+        '<h2 class="block-heading">Условные обозначения</h2>' +
+        '<div class="glossary-list">' +
+        glossaryHtml +
+        "</div>" +
         "</section>"
       : "";
 
@@ -1904,7 +2113,8 @@
       '">' +
       favBtnLabel +
       "</button>" +
-      '<a href="#charts-anchor" class="btn btn-sand" data-action="jump-charts">Перейти к схемам</a>' +
+      jumpBtnHtml +
+      pdfActionBtnHtml +
       "</div>" +
       "</header>" +
       '<section class="specs-surface">' +
@@ -1913,16 +2123,9 @@
       specsHtml +
       "</ul>" +
       "</section>" +
-      '<section id="charts-anchor" class="charts-flow">' +
-      chartsHtml +
-      "</section>" +
+      chartsSectionHtml +
       renderVideosHTML(article) +
-      '<section class="glossary-section">' +
-      '<h2 class="block-heading">Условные обозначения</h2>' +
-      '<div class="glossary-list">' +
-      glossaryHtml +
-      "</div>" +
-      "</section>" +
+      glossarySectionHtml +
       // Кнопка «Читать вслух» непосредственно перед текстом + изящная матовая подсказка со стрелочкой при первом визите
       '<div class="voice-trigger-wrap no-print">' +
       '<button type="button" id="btn-voice-main" class="btn btn-primary btn-block" data-action="tts-play" data-slug="' +
@@ -1939,9 +2142,7 @@
       '<section class="print-section no-print">' +
       '<div class="article-card-actions">' +
       '<button type="button" class="btn btn-primary" data-action="print-large">🖨 Печать крупным шрифтом</button>' +
-      '<a href="' +
-      escapeHtml(article.originalPdf) +
-      '" target="_blank" rel="noopener" class="btn btn-sand">📄 Скачать PDF со схемами</a>' +
+      pdfActionBtnHtml +
       "</div>" +
       '<p class="source-credit">Источник: <a href="' +
       escapeHtml(article.sourceName ? article.sourceUrl : "#") +
@@ -1977,6 +2178,7 @@
 
   function handleRouteChange() {
     stopTts();
+    if (runtime.videoModal.isOpen) closeVideoModal();
     if (runtime.chartModal.isOpen) closeChartModal();
     if (runtime.favPopupOpen) closeFavoritesPopup();
     showHeaderBar();
@@ -2063,6 +2265,27 @@
       fitChartToViewport();
     });
 
+    // Полноэкранный горизонтальный просмотр YouTube-видео
+    document.getElementById("btn-video-close").addEventListener("click", function (e) {
+      e.stopPropagation();
+      closeVideoModal();
+    });
+    document.getElementById("btn-video-rotate").addEventListener("click", function (e) {
+      e.stopPropagation();
+      toggleVideoModalRotation();
+    });
+
+    var onFullscreenChange = function () {
+      var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (!fsEl && runtime.videoModal.isOpen && runtime.videoModal.enteredNativeFullscreen) {
+        closeVideoModal();
+      } else if (runtime.videoModal.isOpen) {
+        setTimeout(syncVideoModalOrientation, 80);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
     // Общее делегирование кликов
     document.addEventListener("click", function (e) {
       if (runtime.currentRoute.view === "article") {
@@ -2130,6 +2353,23 @@
         return;
       }
 
+      if (action === "jump-photos") {
+        e.preventDefault();
+        var phAnchor = document.getElementById("photos-anchor");
+        if (phAnchor) phAnchor.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "open-video-fullscreen") {
+        e.preventDefault();
+        openVideoModal(
+          targetActionEl.getAttribute("data-embed"),
+          targetActionEl.getAttribute("data-raw-url"),
+          targetActionEl.getAttribute("data-title")
+        );
+        return;
+      }
+
       if (action === "tts-play" && slug) {
         dismissVoiceCoachmark();
         var artPlay = getArticleBySlug(slug);
@@ -2176,7 +2416,8 @@
 
     window.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
-        if (runtime.chartModal.isOpen) closeChartModal();
+        if (runtime.videoModal.isOpen) closeVideoModal();
+        else if (runtime.chartModal.isOpen) closeChartModal();
         else if (runtime.favPopupOpen) closeFavoritesPopup();
       }
     });
@@ -2186,6 +2427,10 @@
     var onViewportChange = function () {
       if (runtime.chartModal.isOpen) {
         setTimeout(fitChartToViewport, 80);
+      }
+      if (runtime.videoModal.isOpen) {
+        syncVideoModalOrientation();
+        setTimeout(syncVideoModalOrientation, 80);
       }
     };
     window.addEventListener("resize", onViewportChange);
@@ -2225,7 +2470,7 @@
       var hideDelay = isFastClick ? 210 : 390;
       setTimeout(function () {
         splash.hidden = true;
-        if (!runtime.chartModal.isOpen && !runtime.favPopupOpen) {
+        if (!runtime.chartModal.isOpen && !runtime.favPopupOpen && !runtime.videoModal.isOpen) {
           document.body.style.overflow = "";
         }
       }, hideDelay);
@@ -2278,7 +2523,7 @@
   function registerOfflineWorker() {
     if ("serviceWorker" in navigator && window.location.protocol.indexOf("http") === 0) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js?v=6").catch(function () {});
+        navigator.serviceWorker.register("./sw.js?v=7").catch(function () {});
       });
     }
   }
