@@ -1,18 +1,19 @@
-// Service Worker «Книга вязания спицами» (v8 — Партия 2А рубрики «Носки и следки»)
+// Service Worker «Книга вязания спицами» (v9 — Партия 1 рубрики «Шапки, береты, капоры»)
 
-const CACHE_NAME = "kniga-vyazaniya-v8";
+const CACHE_NAME = "kniga-vyazaniya-v9";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=8",
-  "./app.js?v=8",
-  "./data/articles.js?v=8",
-  "./data/cat-01-batch1.js?v=8",
-  "./data/cat-01-batch2a.js?v=8",
-  "./data/cat-01-batch2b.js?v=8",
-  "./manifest.webmanifest?v=8",
-  "./assets/icon.svg?v=8",
-  "./assets/images/welcome-gulsinya.webp?v=8"
+  "./styles.css?v=9",
+  "./app.js?v=9",
+  "./data/articles.js?v=9",
+  "./data/cat-01-batch1.js?v=9",
+  "./data/cat-01-batch2a.js?v=9",
+  "./data/cat-01-batch2b.js?v=9",
+  "./data/cat-02-batch1.js?v=9",
+  "./manifest.webmanifest?v=9",
+  "./assets/icon.svg?v=9",
+  "./assets/images/welcome-gulsinya.webp?v=9"
 ];
 
 self.addEventListener("install", (event) => {
