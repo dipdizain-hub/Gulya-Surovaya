@@ -152,7 +152,7 @@
 
     var metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
-      metaTheme.setAttribute("content", state.theme === "evening" ? "#EAE5DA" : "#F7F6F1");
+      metaTheme.setAttribute("content", state.theme === "evening" ? "#1E2320" : "#E5E0D5");
     }
 
     var scaleLabel = document.getElementById("font-scale-label");
@@ -1626,6 +1626,89 @@
       contentHtml;
   }
 
+  function parseVideoSource(rawUrl) {
+    var url = String(rawUrl || "").trim();
+    if (!url) return null;
+
+    if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)) {
+      return { kind: "video", src: url };
+    }
+
+    var ytMatch =
+      url.match(/(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/) ||
+      null;
+    if (ytMatch && ytMatch[1]) {
+      return {
+        kind: "iframe",
+        embedUrl: "https://www.youtube.com/embed/" + ytMatch[1] + "?rel=0&playsinline=1"
+      };
+    }
+
+    var rtMatch = url.match(/rutube\.ru\/(?:video|play\/embed)\/([A-Za-z0-9]+)/i) || null;
+    if (rtMatch && rtMatch[1]) {
+      return {
+        kind: "iframe",
+        embedUrl: "https://rutube.ru/play/embed/" + rtMatch[1]
+      };
+    }
+
+    if (url.indexOf("video_ext.php") !== -1) {
+      return { kind: "iframe", embedUrl: url };
+    }
+    var vkMatch = url.match(/(?:vk\.com|vkvideo\.ru)\/video(-?\d+)_(\d+)/i);
+    if (vkMatch) {
+      return {
+        kind: "iframe",
+        embedUrl: "https://vk.com/video_ext.php?oid=" + vkMatch[1] + "&id=" + vkMatch[2] + "&hd=2"
+      };
+    }
+
+    return { kind: "iframe", embedUrl: url };
+  }
+
+  function renderVideosHTML(article) {
+    var list = article.videos || [];
+    if (!list.length) return "";
+
+    var cards = list
+      .map(function (v) {
+        var parsed = parseVideoSource(v.url);
+        if (!parsed) return "";
+
+        var playerHtml =
+          parsed.kind === "video"
+            ? '<video controls playsinline preload="metadata"' +
+              (v.poster ? ' poster="' + escapeHtml(v.poster) + '"' : "") +
+              '><source src="' +
+              escapeHtml(parsed.src) +
+              '"></video>'
+            : '<iframe src="' +
+              escapeHtml(parsed.embedUrl) +
+              '" title="' +
+              escapeHtml(v.title || "Видеоурок") +
+              '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+
+        return (
+          '<div class="video-card no-print">' +
+          '<span class="video-card-badge">▶ Видео прямо на сайте</span>' +
+          '<h3 class="video-card-title">' +
+          escapeHtml(v.title || "Видеоурок") +
+          "</h3>" +
+          (v.subtitle
+            ? '<p class="video-card-sub">' + escapeHtml(v.subtitle) + "</p>"
+            : "") +
+          '<div class="video-frame">' +
+          playerHtml +
+          "</div>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    if (!cards) return "";
+    return '<section id="videos-anchor" class="videos-flow no-print">' + cards + "</section>";
+  }
+
   function renderArticleView(slug) {
     var main = document.getElementById("app-main");
     if (!main) return;
@@ -1833,6 +1916,7 @@
       '<section id="charts-anchor" class="charts-flow">' +
       chartsHtml +
       "</section>" +
+      renderVideosHTML(article) +
       '<section class="glossary-section">' +
       '<h2 class="block-heading">Условные обозначения</h2>' +
       '<div class="glossary-list">' +
@@ -2114,7 +2198,7 @@
   function registerOfflineWorker() {
     if ("serviceWorker" in navigator && window.location.protocol.indexOf("http") === 0) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js?v=4").catch(function () {});
+        navigator.serviceWorker.register("./sw.js?v=5").catch(function () {});
       });
     }
   }
