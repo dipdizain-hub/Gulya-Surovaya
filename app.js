@@ -2523,7 +2523,7 @@
   function registerOfflineWorker() {
     if ("serviceWorker" in navigator && window.location.protocol.indexOf("http") === 0) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js?v=8").catch(function () {});
+        navigator.serviceWorker.register("./sw.js?v=9").catch(function () {});
       });
     }
   }
