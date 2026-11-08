@@ -1,14 +1,14 @@
-// Service Worker «Книга вязания спицами» (v4 — точечные улучшения UX 2026)
+// Service Worker «Книга вязания спицами» (v5 — контраст карточек и встроенное видео)
 
-const CACHE_NAME = "kniga-vyazaniya-v4";
+const CACHE_NAME = "kniga-vyazaniya-v5";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=4",
-  "./app.js?v=4",
-  "./data/articles.js?v=4",
-  "./manifest.webmanifest?v=4",
-  "./assets/icon.svg?v=4",
+  "./styles.css?v=5",
+  "./app.js?v=5",
+  "./data/articles.js?v=5",
+  "./manifest.webmanifest?v=5",
+  "./assets/icon.svg?v=5",
   "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/03.jpg",

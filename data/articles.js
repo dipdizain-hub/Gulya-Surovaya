@@ -142,6 +142,14 @@ window.KNITTING_CATALOG = {
           hint: "Обратите внимание на обозначение N («шишечка» из 3 петель с поворотом работы)."
         }
       ],
+      videos: [
+        {
+          id: "sock-heel-video",
+          title: "Видеоурок: пятка укороченными рядами с двойной петлёй",
+          subtitle: "Наглядный разбор приёма «двойная петля» для бесшовной пятки прямо на странице",
+          url: "https://www.youtube.com/watch?v=t5ku4CgjXTs"
+        }
+      ],
       glossary: [
         {
           term: "Резинка",
@@ -359,6 +367,20 @@ window.KNITTING_CATALOG = {
           subtitle: "Наглядная последовательность перекидывания петель A, B и C на спицах",
           src: "./assets/images/shapka-dvukhtsvetnaya-briosh/06.jpg",
           hint: "Помните, что петля вместе со своим накидом из предыдущего ряда берётся как единая петля."
+        }
+      ],
+      videos: [
+        {
+          id: "briosh-round-video",
+          title: "Видеоурок: двухцветная резинка бриошь по кругу",
+          subtitle: "Прямое воспроизведение приёмов накида и провязывания петель бриошь спицами",
+          url: "https://www.youtube.com/watch?v=ay0qR1W-XvY"
+        },
+        {
+          id: "archive-hat-video",
+          title: "Видео из вашего архива на Google Диске (рубрика «Шапки»)",
+          subtitle: "Пример встроенного видеоролика, найденного в материалах архива",
+          url: "https://www.youtube.com/watch?v=7qlfI9LOSrE"
         }
       ],
       glossary: [
@@ -600,6 +622,14 @@ window.KNITTING_CATALOG = {
           subtitle: "Завершающие 8 рядов каймы перед эластичным закрытием петель",
           src: "./assets/images/shal-tsvetochnoe-eho/chart-edge.jpg",
           hint: "Выполняется 1 раз с 1-го по 8-й ряд."
+        }
+      ],
+      videos: [
+        {
+          id: "echo-nupp-video",
+          title: "Видеоурок: как вязать пышную шишечку «нупп» из 7 петель",
+          subtitle: "Наглядный показ вывязывания и провязывания эстонских нуппов в ажурной шали",
+          url: "https://www.youtube.com/watch?v=EKyZaSUNRow"
         }
       ],
       glossary: [

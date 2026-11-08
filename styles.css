@@ -7,20 +7,21 @@
   /* Крупный базовый кегль: 20px (А+ переключает 20px -> 23px -> 26px) */
   --base-font-size: 20px;
 
-  /* Природная палитра 2026: светлый кремовый, приглушённый шалфейный, светло-песочный */
-  --bg-page: #F7F6F1;
+  /* Природная палитра 2026: выраженный тёплый бежево-серый фон страницы + чисто-белые парящие карточки */
+  --bg-page: #E5E0D5;
   --bg-surface: #FFFFFF;
-  --bg-sand: #EFECE3;
-  --bg-sand-hover: #E5E0D3;
+  --bg-sand: #EFECE4;
+  --bg-sand-hover: #E3DED2;
+  --divider-subtle: rgba(27, 34, 30, 0.075);
 
   /* Высококонтрастный чёткий текст (WCAG AAA) */
   --text-main: #1B221E;
-  --text-muted: #4E5953;
+  --text-muted: #4B5650;
 
   /* Приглушённый шалфейный зелёный */
   --accent-sage: #3D6B58;
   --accent-sage-press: #2E5444;
-  --accent-sage-soft: #E4EFEA;
+  --accent-sage-soft: #E3EFE9;
 
   /* Мягкий кораллово-терракотовый акцент только для иконки Сердечка */
   --heart-color: #D65A4B;
@@ -30,9 +31,11 @@
   --voice-bg: #FAF1D6;
   --voice-bar: #C9963B;
 
-  /* Едва заметная воздушная тень карточек (без рамок!) */
-  --shadow-soft: 0 6px 24px rgba(27, 34, 30, 0.045);
-  --shadow-float: 0 10px 30px rgba(27, 34, 30, 0.12);
+  /* Мягкая, заметная рассеянная тень (большой blur без резких границ — эффект «парения» карточки) */
+  --shadow-soft:
+    0 14px 40px rgba(24, 30, 26, 0.11),
+    0 4px 14px rgba(24, 30, 26, 0.055);
+  --shadow-float: 0 12px 32px rgba(24, 30, 26, 0.16);
 
   /* Современные округлые чёткие шрифты без засечек */
   --font-sans: system-ui, -apple-system, "SF Pro Rounded", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -55,19 +58,27 @@ html[data-font-scale="xlarge"] {
   --base-font-size: 26px;
 }
 
-/* Спокойный вечерний природный режим (тёплый песочно-льняной без желтизны) */
+/* Вечерний режим: спокойный более тёмный фон страницы + карточки заметно светлее фона с рассеянной тенью */
 html[data-theme="evening"] {
-  --bg-page: #EAE5DA;
-  --bg-surface: #F4F0E6;
-  --bg-sand: #DFD9CA;
-  --bg-sand-hover: #D4CCB9;
-  --text-main: #1B211E;
-  --text-muted: #4A544E;
-  --accent-sage: #355F4E;
-  --accent-sage-press: #27493B;
-  --accent-sage-soft: #D7E5DD;
-  --voice-bg: #EFE3BE;
-  --shadow-soft: 0 6px 22px rgba(20, 24, 21, 0.06);
+  --bg-page: #1E2320;
+  --bg-surface: #2B322E;
+  --bg-sand: #363F3A;
+  --bg-sand-hover: #414C46;
+  --divider-subtle: rgba(255, 255, 255, 0.08);
+  --text-main: #F0EDE6;
+  --text-muted: #B6C0BA;
+  --accent-sage: #4B836B;
+  --accent-sage-press: #3D6E59;
+  --accent-sage-soft: rgba(75, 131, 107, 0.22);
+  --heart-color: #EE7566;
+  --heart-soft: rgba(238, 117, 102, 0.2);
+  --voice-bg: #3A3422;
+  --voice-bar: #E2B354;
+  --shadow-soft:
+    0 16px 44px rgba(0, 0, 0, 0.42),
+    0 5px 16px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-float: 0 14px 36px rgba(0, 0, 0, 0.48);
 }
 
 *,
@@ -149,7 +160,7 @@ button {
   position: sticky;
   top: 0;
   z-index: 200;
-  background-color: rgba(247, 246, 241, 0.88);
+  background-color: rgba(229, 224, 213, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
@@ -157,7 +168,7 @@ button {
 }
 
 html[data-theme="evening"] .site-header {
-  background-color: rgba(234, 229, 218, 0.9);
+  background-color: rgba(30, 35, 32, 0.9);
 }
 
 .site-header.is-hidden {
@@ -191,8 +202,9 @@ html[data-theme="evening"] .site-header {
   height: 46px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
-  background-color: var(--bg-sand);
+  background-color: var(--bg-surface);
   color: var(--heart-color);
+  box-shadow: 0 3px 12px rgba(24, 30, 26, 0.08);
   transition: transform 0.12s ease, background-color 0.15s ease;
 }
 
@@ -255,11 +267,12 @@ html[data-theme="evening"] .site-header {
   height: 42px;
   padding: 0 13px;
   border-radius: var(--radius-pill);
-  background-color: var(--bg-sand);
+  background-color: var(--bg-surface);
   color: var(--text-main);
   font-weight: 600;
   font-size: 15px;
   white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(24, 30, 26, 0.08);
   transition: transform 0.1s ease, background-color 0.15s ease;
 }
 
@@ -438,12 +451,13 @@ html[data-theme="evening"] .site-header {
   text-align: center;
 }
 
-/* Мягкая карточка «Вы недавно открывали» (никогда не перекрывает результаты поиска!) */
+/* Мягкая карточка «Вы недавно открывали» (парит над фоном и никогда не перекрывает результаты поиска!) */
 .continue-card {
-  background-color: var(--accent-sage-soft);
+  background-color: var(--bg-surface);
   border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 28px;
+  box-shadow: var(--shadow-soft);
 }
 
 .continue-badge {
@@ -674,7 +688,7 @@ html[data-theme="evening"] .site-header {
 }
 
 html[data-theme="evening"] .fav-popup-sheet {
-  background-color: rgba(234, 229, 218, 0.88);
+  background-color: rgba(38, 45, 41, 0.9);
 }
 
 @media (min-width: 560px) {
@@ -734,7 +748,7 @@ html[data-theme="evening"] .fav-popup-sheet {
 }
 
 html[data-theme="evening"] .fav-glass-card {
-  background-color: rgba(255, 252, 245, 0.62);
+  background-color: rgba(54, 63, 58, 0.76);
 }
 
 .fav-glass-link {
@@ -785,11 +799,15 @@ html[data-theme="evening"] .fav-glass-card {
 }
 
 /* ==========================================================================
-   5. СТРАНИЦА СТАТЬИ: БЕЗ ВЛОЖЕННОСТИ («МАТРЁШЕК»), ТЕКСТ ВО ВСЮ ШИРИНУ ЭКРАНА
+   5. СТРАНИЦА СТАТЬИ: ПАРЯЩИЕ КАРТОЧКИ С РАССЕЯННОЙ ТЕНЬЮ И ВСТРОЕННОЕ ВИДЕО
    ========================================================================== */
 
 .article-intro {
-  padding: 6px 0 28px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-soft);
 }
 
 .article-title-main {
@@ -810,9 +828,8 @@ html[data-theme="evening"] .fav-glass-card {
   width: 100%;
   max-height: 460px;
   object-fit: contain;
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-surface);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-sand);
   margin-bottom: 16px;
 }
 
@@ -822,12 +839,13 @@ html[data-theme="evening"] .fav-glass-card {
   gap: 10px;
 }
 
-/* Плоский светло-песочный блок параметров (без рамок и внутренних коробок) */
+/* Карточка параметров «Пряжа и спицы» */
 .specs-surface {
-  background-color: var(--bg-sand);
+  background-color: var(--bg-surface);
   border-radius: var(--radius-lg);
-  padding: 20px 18px;
-  margin-bottom: 32px;
+  padding: 22px 18px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-soft);
 }
 
 .block-heading {
@@ -906,13 +924,73 @@ html[data-theme="evening"] .fav-glass-card {
   margin: 0 auto;
 }
 
-/* Условные обозначения — чистый список без коробок в коробках */
-.glossary-section {
+/* Встроенные видеоплееры (прямое воспроизведение на странице: YouTube, Rutube, VK Видео, MP4) */
+.videos-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.video-card {
   background-color: var(--bg-surface);
   border-radius: var(--radius-lg);
   padding: 20px 18px;
   box-shadow: var(--shadow-soft);
-  margin-bottom: 36px;
+}
+
+.video-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-sage);
+  background-color: var(--accent-sage-soft);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 10px;
+}
+
+.video-card-title {
+  font-size: 1.18rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+
+.video-card-sub {
+  margin: 0 0 14px;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+
+.video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: #141816;
+}
+
+.video-frame iframe,
+.video-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* Условные обозначения — чистый список в парящей карточке */
+.glossary-section {
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 28px;
 }
 
 .glossary-list {
@@ -952,8 +1030,25 @@ html[data-theme="evening"] .fav-glass-card {
   }
 }
 
+/* Парящие карточки этапов текстового описания (без вложенных коробок внутри!) */
 .stage-section {
-  margin-bottom: 36px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+@media (min-width: 768px) {
+  .article-intro,
+  .specs-surface,
+  .chart-card,
+  .video-card,
+  .glossary-section,
+  .stage-section,
+  .print-section {
+    padding: 26px 26px;
+  }
 }
 
 .stage-header {
@@ -986,19 +1081,25 @@ html[data-theme="evening"] .fav-glass-card {
 .steps-flow {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
 }
 
-/* Чистый полноширинный абзац без рамок и без отступов-коробок */
+/* Чистый полноширинный абзац внутри карточки этапа (без вложенных рамок) */
 .step-row {
   padding: 4px 0;
   border-radius: var(--radius-md);
   transition: background-color 0.2s ease, padding 0.2s ease;
 }
 
+.step-row + .step-row {
+  padding-top: 16px;
+  border-top: 1px solid var(--divider-subtle);
+}
+
 .step-row.is-speaking {
   background-color: var(--voice-bg);
   padding: 14px 16px;
+  border-top-color: transparent;
   border-left: 4px solid var(--voice-bar);
 }
 
@@ -1125,7 +1226,7 @@ html[data-theme="evening"] .fav-glass-card {
 }
 
 html[data-theme="evening"] .tts-fab-btn {
-  background-color: rgba(244, 240, 230, 0.88);
+  background-color: rgba(43, 50, 46, 0.88);
 }
 
 .tts-fab-btn:active {
@@ -1373,10 +1474,13 @@ html[data-theme="evening"] .tts-fab-btn {
 html[data-theme="evening"] .onboarding-glass {
   background: linear-gradient(
     145deg,
-    rgba(248, 244, 235, 0.58) 0%,
-    rgba(224, 219, 206, 0.46) 100%
+    rgba(52, 63, 57, 0.68) 0%,
+    rgba(38, 46, 42, 0.56) 100%
   );
-  border-color: rgba(53, 95, 78, 0.3);
+  border-color: rgba(110, 168, 142, 0.34);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 /* Изящная стрелочка сверху облачка, указывающая строго в центр кнопки «Читать вслух» */
@@ -1396,7 +1500,11 @@ html[data-theme="evening"] .onboarding-glass {
 }
 
 html[data-theme="evening"] .onboarding-arrow-fill {
-  fill: rgba(240, 236, 226, 0.84);
+  fill: rgba(48, 58, 52, 0.86);
+}
+
+html[data-theme="evening"] .onboarding-arrow-stroke {
+  stroke: rgba(110, 168, 142, 0.4);
 }
 
 .onboarding-arrow-stroke {
