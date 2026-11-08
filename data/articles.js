@@ -20,7 +20,7 @@ window.KNITTING_CATALOG = {
         "Бесшовные носки от мыска и от манжеты, ажурные и рельефные узоры, удобные пятки и следки.",
       archiveCount: 18,
       coverImage: "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
-      accentColor: "#9B2C2C"
+      accentColor: "#3D6B58"
     },
     {
       id: "02-shapki",
@@ -31,7 +31,7 @@ window.KNITTING_CATALOG = {
         "Тёплые зимние шапки, двухцветная бриошь, береты, бини и капоры с подробным расчётом макушки.",
       archiveCount: 26,
       coverImage: "./assets/images/shapka-dvukhtsvetnaya-briosh/01.jpg",
-      accentColor: "#225B40"
+      accentColor: "#3D6B58"
     },
     {
       id: "04-shali",
@@ -42,7 +42,7 @@ window.KNITTING_CATALOG = {
         "Ажурные шали и косынки, уютные манишки, снуды и шейные платки спицами.",
       archiveCount: 21,
       coverImage: "./assets/images/shal-tsvetochnoe-eho/cover-variants.jpg",
-      accentColor: "#7C4A1E"
+      accentColor: "#3D6B58"
     },
     {
       id: "03-varezhki",

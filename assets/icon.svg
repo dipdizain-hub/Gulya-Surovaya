@@ -1,18 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Книга вязания спицами">
-  <rect width="512" height="512" rx="108" fill="#9B2C2C"/>
-  <rect x="24" y="24" width="464" height="464" rx="88" fill="none" stroke="#FBF7F0" stroke-width="8" opacity="0.35"/>
-  <!-- Спицы -->
-  <g stroke="#FBF7F0" stroke-width="18" stroke-linecap="round">
-    <line x1="104" y1="408" x2="408" y2="104"/>
-    <line x1="104" y1="104" x2="408" y2="408"/>
+  <rect width="512" height="512" rx="116" fill="#3D6B58"/>
+  <g stroke="#F7F6F1" stroke-width="18" stroke-linecap="round" opacity="0.92">
+    <line x1="108" y1="404" x2="404" y2="108"/>
+    <line x1="108" y1="108" x2="404" y2="404"/>
   </g>
-  <circle cx="416" cy="96" r="18" fill="#FFF0C2"/>
-  <circle cx="96" cy="96" r="18" fill="#FFF0C2"/>
-  <!-- Клубок пряжи -->
-  <circle cx="256" cy="268" r="126" fill="#FBF7F0" stroke="#9B2C2C" stroke-width="10"/>
-  <path d="M154 220 C210 175, 305 175, 358 220" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
-  <path d="M140 268 C210 222, 302 222, 372 268" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
-  <path d="M156 318 C216 276, 298 276, 356 318" fill="none" stroke="#9B2C2C" stroke-width="12" stroke-linecap="round"/>
-  <path d="M205 154 C245 220, 245 310, 200 378" fill="none" stroke="#225B40" stroke-width="10" stroke-linecap="round"/>
-  <path d="M306 154 C268 220, 268 310, 312 378" fill="none" stroke="#225B40" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="412" cy="100" r="18" fill="#EFECE3"/>
+  <circle cx="100" cy="100" r="18" fill="#EFECE3"/>
+  <circle cx="256" cy="268" r="124" fill="#F7F6F1"/>
+  <path d="M156 222 C212 178, 302 178, 356 222" fill="none" stroke="#3D6B58" stroke-width="13" stroke-linecap="round"/>
+  <path d="M142 268 C212 224, 300 224, 370 268" fill="none" stroke="#3D6B58" stroke-width="13" stroke-linecap="round"/>
+  <path d="M158 316 C216 276, 296 276, 354 316" fill="none" stroke="#3D6B58" stroke-width="13" stroke-linecap="round"/>
+  <path d="M206 156 C244 220, 244 310, 202 376" fill="none" stroke="#8FA99B" stroke-width="11" stroke-linecap="round"/>
+  <path d="M306 156 C268 220, 268 310, 310 376" fill="none" stroke="#8FA99B" stroke-width="11" stroke-linecap="round"/>
 </svg>

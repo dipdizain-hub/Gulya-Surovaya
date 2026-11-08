@@ -3,37 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#9B2C2C">
-  <meta name="description" content="Книга вязания спицами — удобный каталог проверенных описаний и схем крупным шрифтом: с медленной озвучкой текста и просмотром схем во весь экран.">
+  <meta name="theme-color" content="#F7F6F1">
+  <meta name="description" content="Книга вязания спицами — удобный современный каталог проверенных описаний и схем крупным шрифтом.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Книга вязания">
-  <title>Книга вязания спицами — Гуля Суровая</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
-  <link rel="apple-touch-icon" href="./assets/icon.svg">
-  <link rel="manifest" href="./manifest.webmanifest?v=2">
-  <link rel="stylesheet" href="./styles.css?v=2">
+  <title>Книга вязания спицами</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=3">
+  <link rel="apple-touch-icon" href="./assets/icon.svg?v=3">
+  <link rel="manifest" href="./manifest.webmanifest?v=3">
+  <link rel="stylesheet" href="./styles.css?v=3">
 </head>
 <body>
   <a href="#app-main" class="skip-link">Перейти к содержимому</a>
 
-  <!-- Компактная верхняя панель (автоматически прячется при прокрутке вниз и возвращается при движении вверх) -->
+  <!-- Верхняя панель: на главной — крупное Сердечко, в статье — кнопка Назад; справа — А+ и Вечер. При прокрутке вниз скрывается -->
   <header id="site-header" class="site-header no-print" role="banner">
     <div class="header-inner">
       <div id="header-left" class="header-left">
-        <a href="#/" class="brand-link" aria-label="На главную страницу каталога">
-          <img src="./assets/icon.svg" alt="" class="brand-icon" width="32" height="32">
-          <strong class="brand-title">Книга вязания</strong>
-        </a>
+        <button type="button" id="btn-header-fav" class="header-heart-btn" data-action="open-fav-popup" aria-label="Открыть избранное">
+          <svg class="heart-svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <span id="header-fav-badge" class="header-fav-badge" hidden>0</span>
+        </button>
       </div>
 
       <div class="header-controls" role="group" aria-label="Настройки чтения">
-        <button type="button" id="btn-font-scale" class="ctrl-btn" aria-label="Изменить размер букв">
+        <button type="button" id="btn-font-scale" class="ctrl-btn" aria-label="Изменить размер шрифта">
           <span class="ctrl-btn-big" aria-hidden="true">А+</span>
           <span id="font-scale-label" class="ctrl-btn-text">100%</span>
         </button>
 
-        <button type="button" id="btn-theme-toggle" class="ctrl-btn" aria-pressed="false" aria-label="Переключить тёплый вечерний свет экрана">
+        <button type="button" id="btn-theme-toggle" class="ctrl-btn" aria-pressed="false" aria-label="Вечерний режим">
           <span id="theme-icon" class="ctrl-btn-icon" aria-hidden="true">🌙</span>
           <span id="theme-label" class="ctrl-btn-text">Вечер</span>
         </button>
@@ -41,7 +43,7 @@
     </div>
   </header>
 
-  <!-- Основная рабочая область -->
+  <!-- Основная область контента -->
   <main id="app-main" class="app-main" tabindex="-1" aria-live="off">
     <noscript>
       <div class="noscript-box">
@@ -49,10 +51,21 @@
         <p>Для отображения каталога схем и голосовой озвучки требуется включённый JavaScript.</p>
       </div>
     </noscript>
-    <div class="loading-card no-print">Загружаем описания и схемы…</div>
+    <div class="loading-card no-print">Загружаем каталог…</div>
   </main>
 
-  <!-- Плавающие боковые кнопки управления озвучкой (чисто кнопки сбоку, не перекрывают текст) -->
+  <!-- Всплывающее окно «Избранное» (popup поверх экрана с полупрозрачными карточками) -->
+  <div id="favorites-popup" class="fav-popup-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="fav-popup-title" hidden>
+    <div class="fav-popup-sheet">
+      <div class="fav-popup-header">
+        <h2 id="fav-popup-title" class="fav-popup-title">Избранное</h2>
+        <button type="button" id="btn-fav-popup-close" class="popup-close-btn" aria-label="Закрыть избранное">✕</button>
+      </div>
+      <div id="favorites-popup-list" class="fav-popup-list"></div>
+    </div>
+  </div>
+
+  <!-- Плавающие боковые кнопки управления озвучкой (не перекрывают текст) -->
   <div id="tts-fab-rail" class="tts-fab-rail no-print" role="region" aria-label="Управление голосовым чтением" hidden>
     <button type="button" id="fab-tts-toggle" class="tts-fab-btn tts-fab-primary" aria-label="Пауза или продолжить чтение">
       <span id="fab-tts-toggle-icon" class="tts-fab-icon" aria-hidden="true">⏸</span>
@@ -64,72 +77,65 @@
       <span class="tts-fab-label">Темп</span>
     </button>
 
-    <button type="button" id="fab-tts-repeat" class="tts-fab-btn" aria-label="Повторить текущий абзац сначала">
+    <button type="button" id="fab-tts-repeat" class="tts-fab-btn" aria-label="Повторить текущий абзац">
       <span class="tts-fab-icon" aria-hidden="true">↺</span>
       <span class="tts-fab-label">Повтор</span>
     </button>
 
-    <button type="button" id="fab-tts-next" class="tts-fab-btn" aria-label="Перейти к следующему абзацу">
+    <button type="button" id="fab-tts-next" class="tts-fab-btn" aria-label="Следующий абзац">
       <span class="tts-fab-icon" aria-hidden="true">⏭</span>
       <span class="tts-fab-label">Дальше</span>
     </button>
 
-    <button type="button" id="fab-tts-stop" class="tts-fab-btn tts-fab-stop" aria-label="Остановить чтение вслух">
+    <button type="button" id="fab-tts-stop" class="tts-fab-btn tts-fab-stop" aria-label="Остановить чтение">
       <span class="tts-fab-icon" aria-hidden="true">✕</span>
       <span class="tts-fab-label">Стоп</span>
     </button>
   </div>
 
-  <!-- Полноэкранный просмотр схемы: схема сразу во весь экран + всплывающая подсказка и кружок -->
-  <div id="chart-modal" class="chart-modal no-print" role="dialog" aria-modal="true" aria-label="Просмотр схемы во весь экран" hidden>
-    <!-- Холст схемы занимает 100% экрана в портретном и горизонтальном режиме -->
+  <!-- Полноэкранный просмотр схемы: 100% экрана + всплывающая подсказка на 12 сек и маленький кружок -->
+  <div id="chart-modal" class="chart-modal no-print" role="dialog" aria-modal="true" aria-label="Просмотр схемы" hidden>
     <div id="chart-viewport" class="chart-viewport">
       <div id="chart-stage" class="chart-stage">
         <img id="chart-modal-img" src="" alt="" draggable="false">
       </div>
     </div>
 
-    <!-- Всплывающая подсказка (появляется на 12 сек, скрывается по нажатию на неё, оставляя кружок) -->
-    <button type="button" id="chart-hint-bubble" class="chart-hint-bubble" aria-label="Подсказка к схеме (нажмите, чтобы скрыть)">
-      <strong id="chart-modal-title" class="chart-bubble-title">Схема узора</strong>
+    <button type="button" id="chart-hint-bubble" class="chart-hint-bubble" aria-label="Скрыть подсказку">
+      <strong id="chart-modal-title" class="chart-bubble-title">Схема</strong>
       <span id="chart-modal-hint" class="chart-bubble-text"></span>
-      <span class="chart-bubble-dismiss">Поверните телефон горизонтально для максимального размера · Нажмите сюда, чтобы скрыть</span>
+      <span class="chart-bubble-dismiss">Поверните экран горизонтально для крупного просмотра · Нажмите, чтобы скрыть</span>
     </button>
 
-    <!-- Небольшой кружок, который остаётся после исчезновения подсказки (по нажатию возвращает текст на 18 сек) -->
-    <button type="button" id="chart-hint-dot" class="chart-hint-dot" aria-label="Показать подсказку к схеме" hidden>
+    <button type="button" id="chart-hint-dot" class="chart-hint-dot" aria-label="Показать подсказку" hidden>
       ?
     </button>
 
-    <!-- Аккуратная компактная кнопка закрытия в правом верхнем углу -->
     <button type="button" id="btn-chart-close" class="chart-close-circle" aria-label="Закрыть схему">
       ✕
     </button>
 
-    <!-- Ненавязчивые мини-кнопки масштаба и поворота в правом нижнем углу поверх холста -->
-    <div class="chart-corner-tools" role="group" aria-label="Масштаб и поворот схемы">
-      <button type="button" id="btn-chart-rotate" class="chart-mini-btn" aria-label="Горизонтальный полноэкранный режим" title="Во весь экран / повернуть">↻</button>
-      <button type="button" id="btn-zoom-out" class="chart-mini-btn" aria-label="Уменьшить схему">−</button>
-      <button type="button" id="btn-zoom-reset" class="chart-mini-btn chart-mini-fit" aria-label="Вписать схему во весь экран">1:1</button>
-      <button type="button" id="btn-zoom-in" class="chart-mini-btn" aria-label="Увеличить схему">+</button>
+    <div class="chart-corner-tools" role="group" aria-label="Масштаб и поворот">
+      <button type="button" id="btn-chart-rotate" class="chart-mini-btn" aria-label="Повернуть горизонтально">↻</button>
+      <button type="button" id="btn-zoom-out" class="chart-mini-btn" aria-label="Уменьшить">−</button>
+      <button type="button" id="btn-zoom-reset" class="chart-mini-btn chart-mini-fit" aria-label="Во весь экран">1:1</button>
+      <button type="button" id="btn-zoom-in" class="chart-mini-btn" aria-label="Увеличить">+</button>
     </div>
   </div>
 
-  <!-- Эстетичная всплывающая подсказка мини-обучения при первом запуске и при прокрутке -->
-  <div id="onboarding-popover" class="onboarding-popover no-print" role="status" aria-live="polite" hidden>
-    <div class="onboarding-popover-badge">Подсказка</div>
-    <p id="onboarding-popover-title" class="onboarding-popover-title"></p>
-    <p id="onboarding-popover-desc" class="onboarding-popover-desc"></p>
-    <div class="onboarding-popover-actions">
-      <button type="button" id="btn-onboarding-ok" class="onboarding-ok-btn">Понятно</button>
-      <button type="button" id="btn-onboarding-skip-all" class="onboarding-skip-btn">Не показывать подсказки</button>
+  <!-- Мини-туториал в стиле матового стекла со стрелочкой, указывающей точно на кнопку -->
+  <div id="onboarding-popover" class="onboarding-glass no-print" role="status" aria-live="polite" hidden>
+    <span id="onboarding-arrow" class="onboarding-arrow" aria-hidden="true"></span>
+    <p id="onboarding-popover-text" class="onboarding-glass-text"></p>
+    <div class="onboarding-glass-footer">
+      <button type="button" id="btn-onboarding-ok" class="onboarding-glass-btn">Понятно</button>
     </div>
   </div>
 
-  <!-- Всплывающее уведомление (тост) -->
+  <!-- Ненавязчивое всплывающее уведомление -->
   <div id="toast-region" class="toast-region no-print" role="status" aria-live="polite" hidden></div>
 
-  <script src="./data/articles.js?v=2"></script>
-  <script src="./app.js?v=2"></script>
+  <script src="./data/articles.js?v=3"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>
