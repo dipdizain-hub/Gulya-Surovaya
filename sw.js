@@ -1,21 +1,22 @@
-// Service Worker «Книга вязания спицами» (v11 — Партия 2Б рубрики «Шапки, береты, капоры»)
+// Service Worker «Книга вязания спицами» (v12 — Партия 3 рубрики «Шапки, береты, капоры»)
 
-const CACHE_NAME = "kniga-vyazaniya-v11";
+const CACHE_NAME = "kniga-vyazaniya-v12";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=11",
-  "./app.js?v=11",
-  "./data/articles.js?v=11",
-  "./data/cat-01-batch1.js?v=11",
-  "./data/cat-01-batch2a.js?v=11",
-  "./data/cat-01-batch2b.js?v=11",
-  "./data/cat-02-batch1.js?v=11",
-  "./data/cat-02-batch2a.js?v=11",
-  "./data/cat-02-batch2b.js?v=11",
-  "./manifest.webmanifest?v=11",
-  "./assets/icon.svg?v=11",
-  "./assets/images/welcome-gulsinya.webp?v=11"
+  "./styles.css?v=12",
+  "./app.js?v=12",
+  "./data/articles.js?v=12",
+  "./data/cat-01-batch1.js?v=12",
+  "./data/cat-01-batch2a.js?v=12",
+  "./data/cat-01-batch2b.js?v=12",
+  "./data/cat-02-batch1.js?v=12",
+  "./data/cat-02-batch2a.js?v=12",
+  "./data/cat-02-batch2b.js?v=12",
+  "./data/cat-02-batch3.js?v=12",
+  "./manifest.webmanifest?v=12",
+  "./assets/icon.svg?v=12",
+  "./assets/images/welcome-gulsinya.webp?v=12"
 ];
 
 self.addEventListener("install", (event) => {
