@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Книга вязания">
   <title>Книга вязания спицами</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=3">
-  <link rel="apple-touch-icon" href="./assets/icon.svg?v=3">
-  <link rel="manifest" href="./manifest.webmanifest?v=3">
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=4">
+  <link rel="apple-touch-icon" href="./assets/icon.svg?v=4">
+  <link rel="manifest" href="./manifest.webmanifest?v=4">
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
   <a href="#app-main" class="skip-link">Перейти к содержимому</a>
@@ -93,7 +93,7 @@
     </button>
   </div>
 
-  <!-- Полноэкранный просмотр схемы: 100% экрана + всплывающая подсказка на 12 сек и маленький кружок -->
+  <!-- Полноэкранный просмотр схемы: 100% экрана, автоскрытие текста (12 сек), кнопка «Скрыть» и переключение кликом по схеме -->
   <div id="chart-modal" class="chart-modal no-print" role="dialog" aria-modal="true" aria-label="Просмотр схемы" hidden>
     <div id="chart-viewport" class="chart-viewport">
       <div id="chart-stage" class="chart-stage">
@@ -101,15 +101,11 @@
       </div>
     </div>
 
-    <button type="button" id="chart-hint-bubble" class="chart-hint-bubble" aria-label="Скрыть подсказку">
+    <div id="chart-hint-bubble" class="chart-hint-bubble">
       <strong id="chart-modal-title" class="chart-bubble-title">Схема</strong>
-      <span id="chart-modal-hint" class="chart-bubble-text"></span>
-      <span class="chart-bubble-dismiss">Поверните экран горизонтально для крупного просмотра · Нажмите, чтобы скрыть</span>
-    </button>
-
-    <button type="button" id="chart-hint-dot" class="chart-hint-dot" aria-label="Показать подсказку" hidden>
-      ?
-    </button>
+      <p id="chart-modal-hint" class="chart-bubble-text"></p>
+      <button type="button" id="btn-chart-hint-hide" class="chart-bubble-hide-btn">Скрыть</button>
+    </div>
 
     <button type="button" id="btn-chart-close" class="chart-close-circle" aria-label="Закрыть схему">
       ✕
@@ -123,19 +119,10 @@
     </div>
   </div>
 
-  <!-- Мини-туториал в стиле матового стекла со стрелочкой, указывающей точно на кнопку -->
-  <div id="onboarding-popover" class="onboarding-glass no-print" role="status" aria-live="polite" hidden>
-    <span id="onboarding-arrow" class="onboarding-arrow" aria-hidden="true"></span>
-    <p id="onboarding-popover-text" class="onboarding-glass-text"></p>
-    <div class="onboarding-glass-footer">
-      <button type="button" id="btn-onboarding-ok" class="onboarding-glass-btn">Понятно</button>
-    </div>
-  </div>
-
   <!-- Ненавязчивое всплывающее уведомление -->
   <div id="toast-region" class="toast-region no-print" role="status" aria-live="polite" hidden></div>
 
-  <script src="./data/articles.js?v=3"></script>
-  <script src="./app.js?v=3"></script>
+  <script src="./data/articles.js?v=4"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>

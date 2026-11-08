@@ -1,7 +1,7 @@
 /* ==========================================================================
-   КНИГА ВЯЗАНИЯ СПИЦАМИ — Интерактивное ядро 2026 (v3)
+   КНИГА ВЯЗАНИЯ СПИЦАМИ — Интерактивное ядро 2026 (v4)
    Плоский природный стиль, всплывающее Избранное, полная озвучка 0.6x без обрывов,
-   схемы во весь экран с кружком-подсказкой и туториал в стиле матового стекла со стрелочкой.
+   переключаемая подсказка на схеме с кнопкой «Скрыть» и изящное матовое стекло в статье.
    ========================================================================== */
 
 (function () {
@@ -21,7 +21,7 @@
     lastOpened: null,           // { slug: string, updatedAt: number }
     ttsRate: 0.6,               // очень медленный голос по умолчанию (0.6x)
     micPermissionGranted: false,// скрывать ли надпись про доступ к микрофону
-    seenHints: {}               // { homeCard: true, voiceBtn: true }
+    seenHints: {}               // { voiceBtn: true } — только внутри статьи
   };
 
   var state = loadState();
@@ -60,12 +60,8 @@
       imgW: 1000,
       imgH: 1000,
       hintTimer: null,
+      singleTapTimer: null,
       isLandscapeLocked: false
-    },
-    onboarding: {
-      activeHintId: null,
-      activeTargetEl: null,
-      observer: null
     },
     toastTimer: null
   };
@@ -186,7 +182,6 @@
     state.fontScale = order[(idx + 1) % order.length];
     saveState();
     applyVisualPreferences();
-    positionActiveCoachmark();
 
     var names = {
       normal: "Стандартный крупный шрифт",
@@ -228,7 +223,6 @@
         }
 
         runtime.lastScrollY = currentY;
-        positionActiveCoachmark();
       },
       { passive: true }
     );
@@ -277,7 +271,6 @@
   function openFavoritesPopup() {
     var popup = document.getElementById("favorites-popup");
     if (!popup) return;
-    dismissActiveCoachmark(false);
     renderFavoritesPopupContent();
     popup.hidden = false;
     runtime.favPopupOpen = true;
@@ -476,7 +469,6 @@
     if (!article || !article.sections) return queue;
     article.sections.forEach(function (sec, secIdx) {
       sec.steps.forEach(function (st, stIdx) {
-        // В начале каждого нового этапа озвучиваем и заголовок этапа
         var prefix = stIdx === 0 ? sec.title + ". " : "";
         queue.push({
           stepId: st.id,
@@ -528,7 +520,6 @@
       if (!runtime.tts.supported) return;
 
       var elapsed = Date.now() - runtime.tts.lastSpeakStartedAt;
-      // Если мобильный браузер закончил фразу, но «проглотил» событие onend — двигаемся дальше!
       if (
         elapsed > 1600 &&
         !window.speechSynthesis.speaking &&
@@ -564,7 +555,6 @@
 
     var chunks = runtime.tts.chunks;
     if (runtime.tts.currentChunkIndex >= chunks.length) {
-      // Текущий абзац дочитан полностью -> автоматически переходим к следующему до конца статьи!
       if (runtime.tts.currentIndex + 1 < runtime.tts.stepsQueue.length) {
         prepareAndSpeakStep(article, runtime.tts.currentIndex + 1, true, false);
       } else {
@@ -578,7 +568,6 @@
     var phrase = chunks[runtime.tts.currentChunkIndex];
     var utter = new SpeechSynthesisUtterance(phrase);
 
-    // Кольцевой буфер защищает объект от удаления сборщиком мусора в Android/iOS
     runtime.tts.utterPool.push(utter);
     if (runtime.tts.utterPool.length > 6) {
       runtime.tts.utterPool.shift();
@@ -615,10 +604,6 @@
     }
   }
 
-  /*
-   * needCancelFirst = true только при ручном переключении пользователем
-   * (микро-задержка 55 мс устраняет баг Android Chrome, где cancel() отменяет следующий speak()).
-   */
   function prepareAndSpeakStep(article, index, allowGentleScroll, needCancelFirst) {
     if (!runtime.tts.supported) {
       showToast("Голосовое чтение не поддерживается в этом браузере");
@@ -681,7 +666,6 @@
       return;
     }
     if (!runtime.tts.active) {
-      // Начинаем читать с самого начала текста описания (кнопка стоит прямо над ним!)
       prepareAndSpeakStep(article, 0, false, true);
       return;
     }
@@ -817,36 +801,54 @@
   }
 
   // ==========================================================================
-  // 6. СХЕМЫ УЗОРОВ ВО ВЕСЬ ЭКРАН + ВСПЛЫВАЮЩАЯ ПОДСКАЗКА И МАЛЕНЬКИЙ КРУЖОК
+  // 6. ЭКРАН ПРОСМОТРА СХЕМЫ: АВТОСКРЫТИЕ (12с), КНОПКА «СКРЫТЬ» И ПЕРЕКЛЮЧАТЕЛЬ НА КАРТИНКЕ
   // ==========================================================================
 
-  function clearChartHintTimer() {
+  function clearChartTimers() {
     if (runtime.chartModal.hintTimer) {
       clearTimeout(runtime.chartModal.hintTimer);
       runtime.chartModal.hintTimer = null;
     }
+    if (runtime.chartModal.singleTapTimer) {
+      clearTimeout(runtime.chartModal.singleTapTimer);
+      runtime.chartModal.singleTapTimer = null;
+    }
   }
 
-  function showChartHintForSeconds(seconds) {
+  function showChartHintPlate() {
     var bubble = document.getElementById("chart-hint-bubble");
-    var dot = document.getElementById("chart-hint-dot");
-    if (!bubble || !dot) return;
+    if (!bubble) return;
 
-    clearChartHintTimer();
+    if (runtime.chartModal.hintTimer) {
+      clearTimeout(runtime.chartModal.hintTimer);
+    }
     bubble.hidden = false;
-    dot.hidden = true;
 
+    // Автоскрытие через 12 секунд (в диапазоне 10–15 секунд)
     runtime.chartModal.hintTimer = setTimeout(function () {
-      collapseChartHintToDot();
-    }, seconds * 1000);
+      hideChartHintPlate();
+    }, 12000);
   }
 
-  function collapseChartHintToDot() {
-    clearChartHintTimer();
+  function hideChartHintPlate() {
+    if (runtime.chartModal.hintTimer) {
+      clearTimeout(runtime.chartModal.hintTimer);
+      runtime.chartModal.hintTimer = null;
+    }
     var bubble = document.getElementById("chart-hint-bubble");
-    var dot = document.getElementById("chart-hint-dot");
     if (bubble) bubble.hidden = true;
-    if (dot) dot.hidden = false;
+  }
+
+  function toggleChartHintPlate() {
+    if (!runtime.chartModal.isOpen) return;
+    var bubble = document.getElementById("chart-hint-bubble");
+    if (!bubble) return;
+
+    if (bubble.hidden) {
+      showChartHintPlate();
+    } else {
+      hideChartHintPlate();
+    }
   }
 
   function openChartModal(articleSlug, chartId, directSrc, directTitle, directHint) {
@@ -874,8 +876,6 @@
 
     if (!modal || !imgEl || !src) return;
 
-    dismissActiveCoachmark(false);
-
     runtime.chartModal.isOpen = true;
     runtime.chartModal.articleSlug = articleSlug;
     runtime.chartModal.chartId = chartId || src;
@@ -885,8 +885,8 @@
     modal.hidden = false;
     document.body.style.overflow = "hidden";
 
-    // Подсказка появляется на 12 секунд (10–15 сек), затем остаётся маленький кружок
-    showChartHintForSeconds(12);
+    // Показываем тёмную плашку с автоскрытием через 12 секунд
+    showChartHintPlate();
     syncSilentWakeLock();
 
     var applyLoadedDimensions = function () {
@@ -907,7 +907,7 @@
   }
 
   function closeChartModal() {
-    clearChartHintTimer();
+    clearChartTimers();
     var modal = document.getElementById("chart-modal");
     if (modal) modal.hidden = true;
     runtime.chartModal.isOpen = false;
@@ -1053,10 +1053,13 @@
     var panStartY = 0;
     var origTx = 0;
     var origTy = 0;
+    var maxTouchMove = 0;
+    var hadMultiTouch = false;
 
     var pinching = false;
     var startPinchDist = 0;
     var lastTapTime = 0;
+    var lastTouchEndAt = 0;
 
     function getTouchDist(t1, t2) {
       var dx = t1.clientX - t2.clientX;
@@ -1067,26 +1070,18 @@
     vp.addEventListener(
       "touchstart",
       function (e) {
-        if (e.touches.length === 2) {
+        if (e.touches.length >= 2) {
+          hadMultiTouch = true;
           pinching = true;
           draggingPan = false;
           startPinchDist = getTouchDist(e.touches[0], e.touches[1]);
-        } else if (e.touches.length === 1) {
-          var now = Date.now();
-          if (now - lastTapTime < 280) {
-            var rect = vp.getBoundingClientRect();
-            var tx = e.touches[0].clientX - rect.left;
-            var ty = e.touches[0].clientY - rect.top;
-            if (runtime.chartModal.scale > runtime.chartModal.fitScale * 1.25) {
-              fitChartToViewport();
-            } else {
-              zoomChartAroundPoint(2.2, tx, ty);
-            }
-            lastTapTime = 0;
-            return;
+          if (runtime.chartModal.singleTapTimer) {
+            clearTimeout(runtime.chartModal.singleTapTimer);
+            runtime.chartModal.singleTapTimer = null;
           }
-          lastTapTime = now;
-
+        } else if (e.touches.length === 1) {
+          hadMultiTouch = false;
+          maxTouchMove = 0;
           draggingPan = true;
           pinching = false;
           panStartX = e.touches[0].clientX;
@@ -1101,7 +1096,8 @@
     vp.addEventListener(
       "touchmove",
       function (e) {
-        if (pinching && e.touches.length === 2) {
+        if (pinching && e.touches.length >= 2) {
+          hadMultiTouch = true;
           e.preventDefault();
           var dist = getTouchDist(e.touches[0], e.touches[1]);
           if (startPinchDist > 10) {
@@ -1112,9 +1108,14 @@
             startPinchDist = dist;
           }
         } else if (draggingPan && e.touches.length === 1) {
+          var dx = e.touches[0].clientX - panStartX;
+          var dy = e.touches[0].clientY - panStartY;
+          var moveDist = Math.sqrt(dx * dx + dy * dy);
+          if (moveDist > maxTouchMove) maxTouchMove = moveDist;
+
           e.preventDefault();
-          runtime.chartModal.tx = origTx + (e.touches[0].clientX - panStartX);
-          runtime.chartModal.ty = origTy + (e.touches[0].clientY - panStartY);
+          runtime.chartModal.tx = origTx + dx;
+          runtime.chartModal.ty = origTy + dy;
           clampChartPan();
           applyChartTransform();
         }
@@ -1122,14 +1123,46 @@
       { passive: false }
     );
 
-    vp.addEventListener("touchend", function () {
-      draggingPan = false;
-      pinching = false;
+    vp.addEventListener("touchend", function (e) {
+      lastTouchEndAt = Date.now();
+      if (e.touches.length === 0) {
+        if (!hadMultiTouch && maxTouchMove < 10) {
+          var now = Date.now();
+          var changed = e.changedTouches && e.changedTouches[0];
+          if (now - lastTapTime < 260) {
+            // Двойной тап — быстрое приближение/отдаление
+            if (runtime.chartModal.singleTapTimer) {
+              clearTimeout(runtime.chartModal.singleTapTimer);
+              runtime.chartModal.singleTapTimer = null;
+            }
+            var rect = vp.getBoundingClientRect();
+            var tx = changed ? changed.clientX - rect.left : vp.clientWidth / 2;
+            var ty = changed ? changed.clientY - rect.top : vp.clientHeight / 2;
+            if (runtime.chartModal.scale > runtime.chartModal.fitScale * 1.25) {
+              fitChartToViewport();
+            } else {
+              zoomChartAroundPoint(2.2, tx, ty);
+            }
+            lastTapTime = 0;
+          } else {
+            // Одиночный тап по схеме — переключатель «показать / скрыть» текст
+            lastTapTime = now;
+            runtime.chartModal.singleTapTimer = setTimeout(function () {
+              runtime.chartModal.singleTapTimer = null;
+              toggleChartHintPlate();
+            }, 230);
+          }
+        }
+        draggingPan = false;
+        pinching = false;
+      }
     });
 
     var mouseDown = false;
+    var maxMouseMove = 0;
     vp.addEventListener("mousedown", function (e) {
       mouseDown = true;
+      maxMouseMove = 0;
       panStartX = e.clientX;
       panStartY = e.clientY;
       origTx = runtime.chartModal.tx;
@@ -1138,14 +1171,30 @@
 
     window.addEventListener("mousemove", function (e) {
       if (!mouseDown || !runtime.chartModal.isOpen) return;
-      runtime.chartModal.tx = origTx + (e.clientX - panStartX);
-      runtime.chartModal.ty = origTy + (e.clientY - panStartY);
+      var dx = e.clientX - panStartX;
+      var dy = e.clientY - panStartY;
+      var moveDist = Math.sqrt(dx * dx + dy * dy);
+      if (moveDist > maxMouseMove) maxMouseMove = moveDist;
+
+      runtime.chartModal.tx = origTx + dx;
+      runtime.chartModal.ty = origTy + dy;
       clampChartPan();
       applyChartTransform();
     });
 
     window.addEventListener("mouseup", function () {
       mouseDown = false;
+    });
+
+    // Клик мышью (или программный клик) в любое место схемы переключает плашку текста
+    vp.addEventListener("click", function () {
+      if (!runtime.chartModal.isOpen) return;
+      if (Date.now() - lastTouchEndAt < 550) return;
+      if (maxMouseMove >= 8) {
+        maxMouseMove = 0;
+        return;
+      }
+      toggleChartHintPlate();
     });
 
     vp.addEventListener(
@@ -1162,143 +1211,36 @@
   }
 
   // ==========================================================================
-  // 7. ОБУЧЕНИЕ: МАТОВОЕ СТЕКЛО + СТРЕЛОЧКА ТОЧНО НА КНОПКУ + ТОЧНЫЙ ТЕКСТ ТЗ
+  // 7. ВСПЛЫВАЮЩАЯ ПОДСКАЗКА ТОЛЬКО ВНУТРИ СТАТЬИ (МАТОВОЕ СТЕКЛО + СТРЕЛОЧКА)
   // ==========================================================================
 
-  function disconnectOnboardingObserver() {
-    if (runtime.onboarding.observer) {
-      runtime.onboarding.observer.disconnect();
-      runtime.onboarding.observer = null;
-    }
-  }
-
-  function dismissActiveCoachmark(markSeen) {
-    if (markSeen && runtime.onboarding.activeHintId) {
-      state.seenHints[runtime.onboarding.activeHintId] = true;
+  function dismissVoiceCoachmark() {
+    if (!state.seenHints.voiceBtn) {
+      state.seenHints.voiceBtn = true;
       saveState();
     }
-    if (runtime.onboarding.activeTargetEl) {
-      runtime.onboarding.activeTargetEl.removeAttribute("data-coach-highlight");
-      runtime.onboarding.activeTargetEl = null;
-    }
-    runtime.onboarding.activeHintId = null;
+    var btn = document.getElementById("btn-voice-main");
+    if (btn) btn.removeAttribute("data-coach-highlight");
     var pop = document.getElementById("onboarding-popover");
     if (pop) pop.hidden = true;
   }
 
-  function positionActiveCoachmark() {
-    var pop = document.getElementById("onboarding-popover");
-    var target = runtime.onboarding.activeTargetEl;
-    if (!pop || pop.hidden || !target) return;
-
-    var rect = target.getBoundingClientRect();
-    var vw = window.innerWidth || 390;
-    var vh = window.innerHeight || 800;
-
-    // Если кнопка полностью ушла за пределы экрана — временно не сдвигаем в пустоту
-    if (rect.bottom < 0 || rect.top > vh) return;
-
-    var popWidth = Math.min(vw - 32, 370);
-    pop.style.width = popWidth + "px";
-
-    var targetCenterX = rect.left + rect.width / 2;
-    var left = Math.round(targetCenterX - popWidth / 2);
-    left = Math.max(16, Math.min(vw - popWidth - 16, left));
-    pop.style.left = left + "px";
-
-    var arrowLeft = Math.max(24, Math.min(popWidth - 24, targetCenterX - left));
-    pop.style.setProperty("--arrow-left", arrowLeft + "px");
-
-    var popHeight = pop.offsetHeight || 150;
-    var spaceBelow = vh - rect.bottom;
-
-    if (spaceBelow >= popHeight + 24 || rect.top < popHeight + 24) {
-      // Размещаем под кнопкой, стрелочка указывает вверх точно на кнопку
-      pop.setAttribute("data-arrow-dir", "up");
-      pop.style.top = Math.round(rect.bottom + 14) + "px";
-    } else {
-      // Размещаем над кнопкой, стрелочка указывает вниз точно на кнопку
-      pop.setAttribute("data-arrow-dir", "down");
-      pop.style.top = Math.max(12, Math.round(rect.top - popHeight - 14)) + "px";
-    }
-  }
-
-  function showCoachmark(hintId, targetEl, text) {
-    if (state.seenHints[hintId]) return;
-    if (runtime.chartModal.isOpen || runtime.favPopupOpen) return;
-    if (runtime.onboarding.activeHintId) return;
-    if (!targetEl) return;
-
-    var pop = document.getElementById("onboarding-popover");
-    var textEl = document.getElementById("onboarding-popover-text");
-    if (!pop || !textEl) return;
-
-    runtime.onboarding.activeHintId = hintId;
-    runtime.onboarding.activeTargetEl = targetEl;
-    targetEl.setAttribute("data-coach-highlight", "true");
-
-    textEl.textContent = text;
-    pop.hidden = false;
-
-    requestAnimationFrame(function () {
-      positionActiveCoachmark();
-    });
-  }
-
-  function setupHomeOnboarding() {
-    disconnectOnboardingObserver();
-    dismissActiveCoachmark(false);
-    // При первом заходе на главную ненавязчиво показываем, как открыть описание, если ещё не видели подсказку озвучки
-    if (state.seenHints.homeCard || state.seenHints.voiceBtn) return;
-
-    setTimeout(function () {
-      if (runtime.currentRoute.view !== "home" || runtime.searchQuery) return;
-      var firstBtn = document.querySelector(".article-card .btn-primary");
-      if (firstBtn) {
-        showCoachmark(
-          "homeCard",
-          firstBtn,
-          "Нажмите сюда, чтобы открыть описание узора, схемы и озвучку текста"
-        );
-      }
-    }, 500);
-  }
-
-  function setupArticleOnboarding() {
-    disconnectOnboardingObserver();
-    dismissActiveCoachmark(false);
-    if (state.seenHints.voiceBtn) return;
-
-    var voiceBtn = document.getElementById("btn-voice-main");
-    if (!voiceBtn) return;
-
-    var exactTzText =
-      "Нажмите сюда — включится озвучка. Появятся кнопочки паузы и скорости. Так вы можете слушать текст, а не читать его сами";
-
-    if (!("IntersectionObserver" in window)) {
-      showCoachmark("voiceBtn", voiceBtn, exactTzText);
-      return;
-    }
-
-    var obs = new IntersectionObserver(
-      function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting && !state.seenHints.voiceBtn) {
-            showCoachmark("voiceBtn", voiceBtn, exactTzText);
-            obs.disconnect();
-            break;
-          }
-        }
-      },
-      {
-        root: null,
-        rootMargin: "-10% 0px -15% 0px",
-        threshold: 0.5
-      }
+  function buildArticleVoiceCoachmarkHTML() {
+    if (state.seenHints.voiceBtn) return "";
+    return (
+      '<div id="onboarding-popover" class="onboarding-glass no-print" role="status" aria-live="polite">' +
+      '<svg id="onboarding-arrow" class="onboarding-arrow-svg" width="24" height="12" viewBox="0 0 24 12" aria-hidden="true">' +
+      '<path class="onboarding-arrow-fill" d="M2 12 L12 1.5 L22 12 Z"></path>' +
+      '<path class="onboarding-arrow-stroke" d="M1.5 12 L12 1.5 L22.5 12" fill="none"></path>' +
+      "</svg>" +
+      '<p id="onboarding-popover-text" class="onboarding-glass-text">' +
+      "Нажмите сюда — включится озвучка. Появятся кнопочки паузы и скорости. Так вы можете слушать текст, а не читать его сами" +
+      "</p>" +
+      '<div class="onboarding-glass-footer">' +
+      '<button type="button" id="btn-onboarding-ok" class="onboarding-glass-btn" data-action="dismiss-onboarding">Понятно</button>' +
+      "</div>" +
+      "</div>"
     );
-
-    obs.observe(voiceBtn);
-    runtime.onboarding.observer = obs;
   }
 
   // ==========================================================================
@@ -1351,7 +1293,6 @@
       btn.textContent = "🎤 Говорите название узора…";
     }
 
-    // Как только браузер получил доступ к микрофону и начал слушать — скрываем подсказку навсегда!
     rec.onaudiostart = function () {
       markMicPermissionConfirmed();
     };
@@ -1395,7 +1336,7 @@
   }
 
   // ==========================================================================
-  // 9. ШАБЛОНЫ СТРАНИЦ (ГЛАВНАЯ / КАТЕГОРИЯ / СТАТЬЯ)
+  // 9. ШАБЛОНЫ СТРАНИЦ (ГЛАВНАЯ БЕЗ ВСПЛЫВАЮЩИХ ОКОН / КАТЕГОРИЯ / СТАТЬЯ)
   // ==========================================================================
 
   function updateHeaderNavigation(route) {
@@ -1403,7 +1344,6 @@
     if (!leftEl) return;
 
     if (route.view === "home") {
-      // На главной вместо обрезающегося текста — крупная иконка «Сердечко» (Избранное)
       leftEl.innerHTML =
         '<button type="button" id="btn-header-fav" class="header-heart-btn" data-action="open-fav-popup" aria-label="Открыть избранное">' +
         '<svg class="heart-svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">' +
@@ -1413,7 +1353,6 @@
         "</button>";
       syncHeaderHeartBadge();
     } else {
-      // В статье и рубрике — только лаконичная кнопка «← Назад» (без названия рубрики!)
       leftEl.innerHTML = '<a href="#/" class="back-nav-btn">← Назад</a>';
     }
   }
@@ -1593,12 +1532,11 @@
       ? ""
       : '<p id="mic-permission-note" class="mic-permission-note">При первом запуске разрешите доступ к микрофону</p>';
 
+    // На главной странице — НИКАКИХ всплывающих подсказок и окон!
     main.innerHTML =
-      // 1. Отделённое название сайта (без лишнего подзаголовка-описания!)
       '<div class="home-title-block">' +
       '<h1 class="home-main-title">Книга вязания спицами</h1>' +
       "</div>" +
-      // 2. Чистый плоский блок поиска
       '<section class="search-card" role="search">' +
       '<div class="search-input-wrap">' +
       '<input type="search" id="search-input" class="search-input" aria-label="Поиск узора" placeholder="Найти узор: носки, шапка, шаль…" value="' +
@@ -1611,14 +1549,12 @@
       '<button type="button" id="btn-voice-search" class="btn voice-search-btn" data-action="voice-search">🎤 Найти голосом</button>' +
       micHintHtml +
       "</section>" +
-      // 3. СРАЗУ под кнопкой поиска — результаты поиска / карточки описаний (ничто их не перекрывает!)
       '<section id="results-section" aria-labelledby="pilot-list-heading">' +
       '<h2 id="pilot-list-heading" class="section-heading">' +
       resultsHeading +
       "</h2>" +
       articlesHtml +
       "</section>" +
-      // 4. Недавно открытая тема и рубрики показываются ниже (и скрываются во время ввода поиска)
       (hasQuery
         ? ""
         : buildContinueCardHTML() +
@@ -1630,14 +1566,12 @@
           "</section>");
 
     bindSearchInput();
-    setupHomeOnboarding();
   }
 
   function bindSearchInput() {
     var inp = document.getElementById("search-input");
     if (!inp) return;
     inp.addEventListener("input", function () {
-      dismissActiveCoachmark(false);
       runtime.searchQuery = inp.value;
       var cursorPos = inp.selectionStart;
       renderHomeView();
@@ -1654,8 +1588,6 @@
   function renderCategoryView(catId) {
     var main = document.getElementById("app-main");
     if (!main) return;
-    disconnectOnboardingObserver();
-    dismissActiveCoachmark(false);
 
     var cat = getCategoryById(catId);
     if (!cat) {
@@ -1728,7 +1660,6 @@
       })
       .join("");
 
-    // Схемы узора — без лишнего заголовка «Схемы узора (нажмите на картинку — откроется во весь экран)»
     var chartsHtml = (article.charts || [])
       .map(function (ch) {
         return (
@@ -1857,9 +1788,10 @@
         "</section>"
       : "";
 
+    var highlightAttr = state.seenHints.voiceBtn ? "" : ' data-coach-highlight="true"';
+
     main.innerHTML =
       "<article>" +
-      // 1. Вступление без рамок
       '<header class="article-intro">' +
       '<span class="article-cat-tag">' +
       escapeHtml(article.categoryTitle) +
@@ -1892,37 +1824,34 @@
       '<a href="#charts-anchor" class="btn btn-sand" data-action="jump-charts">Перейти к схемам</a>' +
       "</div>" +
       "</header>" +
-      // 2. Пряжа и спицы
       '<section class="specs-surface">' +
       '<h2 class="block-heading">Пряжа и спицы</h2>' +
       '<ul class="specs-list">' +
       specsHtml +
       "</ul>" +
       "</section>" +
-      // 3. Схемы (чистые карточки без лишнего заголовка-инструкции)
       '<section id="charts-anchor" class="charts-flow">' +
       chartsHtml +
       "</section>" +
-      // 4. Условные обозначения
       '<section class="glossary-section">' +
       '<h2 class="block-heading">Условные обозначения</h2>' +
       '<div class="glossary-list">' +
       glossaryHtml +
       "</div>" +
       "</section>" +
-      // 5. Кнопка «Читать вслух» НЕПОСРЕДСТВЕННО в начале текста описания (без лишних надписей!)
+      // Кнопка «Читать вслух» непосредственно перед текстом + изящная матовая подсказка со стрелочкой при первом визите
       '<div class="voice-trigger-wrap no-print">' +
       '<button type="button" id="btn-voice-main" class="btn btn-primary btn-block" data-action="tts-play" data-slug="' +
       escapeHtml(article.slug) +
-      '">🔊 Читать вслух</button>' +
+      '"' +
+      highlightAttr +
+      ">🔊 Читать вслух</button>" +
+      buildArticleVoiceCoachmarkHTML() +
       "</div>" +
-      // 6. Текст описания во всю ширину экрана без вложенных коробок
       '<div class="article-text-flow">' +
       sectionsHtml +
       "</div>" +
-      // 7. Дополнительные фотографии
       galleryHtml +
-      // 8. Печать и оригинальный PDF
       '<section class="print-section no-print">' +
       '<div class="article-card-actions">' +
       '<button type="button" class="btn btn-primary" data-action="print-large">🖨 Печать крупным шрифтом</button>' +
@@ -1931,7 +1860,7 @@
       '" target="_blank" rel="noopener" class="btn btn-sand">📄 Скачать PDF со схемами</a>' +
       "</div>" +
       '<p class="source-credit">Источник: <a href="' +
-      escapeHtml(article.sourceUrl) +
+      escapeHtml(article.sourceName ? article.sourceUrl : "#") +
       '" target="_blank" rel="noopener noreferrer">' +
       escapeHtml(article.sourceName) +
       "</a></p>" +
@@ -1939,7 +1868,6 @@
       "</article>";
 
     syncSilentWakeLock();
-    setupArticleOnboarding();
   }
 
   // ==========================================================================
@@ -2023,26 +1951,33 @@
 
     document.getElementById("fab-tts-stop").addEventListener("click", stopTts);
 
-    // Закрытие матовой подсказки туториала
-    document.getElementById("btn-onboarding-ok").addEventListener("click", function () {
-      dismissActiveCoachmark(true);
+    // Экран просмотра схемы: кнопка «Скрыть» в самом низу плашки и крестик (X) в углу экрана
+    document.getElementById("btn-chart-hint-hide").addEventListener("click", function (e) {
+      e.stopPropagation();
+      hideChartHintPlate();
     });
 
-    // Подсказка и кружок в окне схемы
-    document.getElementById("chart-hint-bubble").addEventListener("click", collapseChartHintToDot);
-    document.getElementById("chart-hint-dot").addEventListener("click", function () {
-      showChartHintForSeconds(18);
+    document.getElementById("btn-chart-close").addEventListener("click", function (e) {
+      e.stopPropagation();
+      closeChartModal();
     });
 
-    document.getElementById("btn-chart-close").addEventListener("click", closeChartModal);
-    document.getElementById("btn-chart-rotate").addEventListener("click", toggleChartLandscapeMode);
-    document.getElementById("btn-zoom-in").addEventListener("click", function () {
+    document.getElementById("btn-chart-rotate").addEventListener("click", function (e) {
+      e.stopPropagation();
+      toggleChartLandscapeMode();
+    });
+    document.getElementById("btn-zoom-in").addEventListener("click", function (e) {
+      e.stopPropagation();
       zoomChartAroundPoint(1.35);
     });
-    document.getElementById("btn-zoom-out").addEventListener("click", function () {
+    document.getElementById("btn-zoom-out").addEventListener("click", function (e) {
+      e.stopPropagation();
       zoomChartAroundPoint(1 / 1.35);
     });
-    document.getElementById("btn-zoom-reset").addEventListener("click", fitChartToViewport);
+    document.getElementById("btn-zoom-reset").addEventListener("click", function (e) {
+      e.stopPropagation();
+      fitChartToViewport();
+    });
 
     // Общее делегирование кликов
     document.addEventListener("click", function (e) {
@@ -2051,15 +1986,16 @@
       }
 
       var targetActionEl = e.target.closest("[data-action]");
-      var highlighted = e.target.closest("[data-coach-highlight='true']");
-      if (highlighted) {
-        dismissActiveCoachmark(true);
-      }
-
       if (!targetActionEl) return;
 
       var action = targetActionEl.getAttribute("data-action");
       var slug = targetActionEl.getAttribute("data-slug");
+
+      if (action === "dismiss-onboarding") {
+        e.preventDefault();
+        dismissVoiceCoachmark();
+        return;
+      }
 
       if (action === "open-fav-popup") {
         e.preventDefault();
@@ -2111,19 +2047,20 @@
       }
 
       if (action === "tts-play" && slug) {
+        dismissVoiceCoachmark();
         var artPlay = getArticleBySlug(slug);
         if (artPlay) togglePlayPauseTts(artPlay);
         return;
       }
 
       if (action === "speak-step" && slug) {
+        dismissVoiceCoachmark();
         var stepIdx = parseInt(targetActionEl.getAttribute("data-step-index") || "0", 10);
         var artStep = getArticleBySlug(slug);
         if (artStep) {
           if (runtime.tts.active && runtime.tts.currentIndex === stepIdx) {
             togglePlayPauseTts(artStep);
           } else {
-            // Читает с выбранного места непрерывно до конца описания без обрыва!
             prepareAndSpeakStep(artStep, stepIdx, false, true);
           }
         }
@@ -2166,7 +2103,6 @@
       if (runtime.chartModal.isOpen) {
         setTimeout(fitChartToViewport, 80);
       }
-      positionActiveCoachmark();
     };
     window.addEventListener("resize", onViewportChange);
     window.addEventListener("orientationchange", onViewportChange);
@@ -2178,7 +2114,7 @@
   function registerOfflineWorker() {
     if ("serviceWorker" in navigator && window.location.protocol.indexOf("http") === 0) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js?v=3").catch(function () {});
+        navigator.serviceWorker.register("./sw.js?v=4").catch(function () {});
       });
     }
   }

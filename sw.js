@@ -1,14 +1,14 @@
-// Service Worker «Книга вязания спицами» (v3 — редизайн 2026)
+// Service Worker «Книга вязания спицами» (v4 — точечные улучшения UX 2026)
 
-const CACHE_NAME = "kniga-vyazaniya-v3";
+const CACHE_NAME = "kniga-vyazaniya-v4";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=3",
-  "./app.js?v=3",
-  "./data/articles.js?v=3",
-  "./manifest.webmanifest?v=3",
-  "./assets/icon.svg?v=3",
+  "./styles.css?v=4",
+  "./app.js?v=4",
+  "./data/articles.js?v=4",
+  "./manifest.webmanifest?v=4",
+  "./assets/icon.svg?v=4",
   "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/03.jpg",

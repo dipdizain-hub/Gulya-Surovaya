@@ -935,7 +935,9 @@ html[data-theme="evening"] .fav-glass-card {
 
 /* Начало основного текста статьи + чистая кнопка «Читать вслух» непосредственно перед текстом */
 .voice-trigger-wrap {
+  position: relative;
   margin: 0 0 24px;
+  z-index: 45;
 }
 
 .article-text-flow {
@@ -1204,41 +1206,42 @@ html[data-theme="evening"] .tts-fab-btn {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
-  z-index: 1030;
-  width: 42px;
-  height: 42px;
+  z-index: 1040;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background-color: rgba(27, 34, 30, 0.72);
+  background-color: rgba(24, 30, 27, 0.82);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: #FFFFFF;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
-/* Подсказка к схеме в стиле матового стекла (появляется на 12 сек -> кружок) */
+/* Тёмная плашка с текстом на экране просмотра схемы (внизу кнопка «Скрыть» чуть темнее плашки) */
 .chart-hint-bubble {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
   left: max(12px, env(safe-area-inset-left));
-  right: 64px;
-  max-width: 440px;
+  right: 68px;
+  max-width: 430px;
   z-index: 1025;
-  background-color: rgba(27, 34, 30, 0.78);
+  background-color: rgba(38, 44, 41, 0.84);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   color: #FFFFFF;
   border-radius: 18px;
-  padding: 12px 16px;
+  padding: 14px 16px 12px;
   text-align: left;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  animation: glassPopIn 0.22s ease-out;
+  gap: 6px;
+  animation: glassPopIn 0.2s ease-out;
 }
 
 .chart-bubble-title {
@@ -1249,35 +1252,34 @@ html[data-theme="evening"] .tts-fab-btn {
 }
 
 .chart-bubble-text {
-  font-size: 14px;
-  line-height: 1.4;
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.42;
   color: #FFFFFF;
 }
 
-.chart-bubble-dismiss {
-  font-size: 12px;
-  color: rgba(239, 236, 227, 0.8);
-  margin-top: 2px;
+/* Кнопка «Скрыть» в самом низу плашки — чуть темнее самой плашки */
+.chart-bubble-hide-btn {
+  margin-top: 6px;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 12px;
+  background-color: rgba(12, 15, 14, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #F4F2EC;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: center;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
-.chart-hint-dot {
-  position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left));
-  z-index: 1025;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background-color: rgba(61, 107, 88, 0.86);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: #FFFFFF;
-  font-size: 17px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+.chart-bubble-hide-btn:hover {
+  background-color: rgba(8, 10, 9, 0.78);
+}
+
+.chart-bubble-hide-btn:active {
+  transform: scale(0.98);
 }
 
 .chart-corner-tools {
@@ -1311,7 +1313,7 @@ html[data-theme="evening"] .tts-fab-btn {
 }
 
 /* ==========================================================================
-   8. ОБУЧЕНИЕ (МАТОВОЕ СТЕКЛО + АККУРАТНАЯ СТРЕЛОЧКА ТОЧНО НА КНОПКУ)
+   8. ВСПЛЫВАЮЩАЯ ПОДСКАЗКА ВНУТРИ СТАТЬИ (ИЗЯЩНОЕ МАТОВОЕ СТЕКЛО СО СТРЕЛОЧКОЙ)
    ========================================================================== */
 
 @keyframes glassPopIn {
@@ -1327,10 +1329,10 @@ html[data-theme="evening"] .tts-fab-btn {
 
 @keyframes softTargetPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(61, 107, 88, 0.42);
+    box-shadow: 0 0 0 0 rgba(61, 107, 88, 0.36);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(61, 107, 88, 0);
+    box-shadow: 0 0 0 10px rgba(61, 107, 88, 0);
   }
   100% {
     box-shadow: 0 0 0 0 rgba(61, 107, 88, 0);
@@ -1338,68 +1340,77 @@ html[data-theme="evening"] .tts-fab-btn {
 }
 
 [data-coach-highlight="true"] {
-  animation: softTargetPulse 2s infinite;
+  animation: softTargetPulse 2.2s infinite;
 }
 
 .onboarding-glass {
-  position: fixed;
-  left: 16px;
-  top: 120px;
-  z-index: 700;
-  width: calc(100vw - 32px);
-  max-width: 370px;
-  background-color: rgba(255, 255, 255, 0.76);
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.88);
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  z-index: 60;
+  width: calc(100% - 16px);
+  max-width: 334px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.54) 0%,
+    rgba(222, 237, 230, 0.42) 100%
+  );
+  backdrop-filter: blur(14px) saturate(185%);
+  -webkit-backdrop-filter: blur(14px) saturate(185%);
+  border: 1px solid rgba(61, 107, 88, 0.28);
   border-radius: 20px;
-  padding: 18px 18px 16px;
-  box-shadow: 0 16px 40px rgba(27, 34, 30, 0.16);
+  padding: 15px 17px 13px;
+  box-shadow:
+    0 16px 36px rgba(27, 34, 30, 0.13),
+    0 2px 8px rgba(27, 34, 30, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   color: var(--text-main);
   animation: glassPopIn 0.25s ease-out;
 }
 
 html[data-theme="evening"] .onboarding-glass {
-  background-color: rgba(244, 240, 230, 0.82);
-  border-color: rgba(255, 255, 255, 0.55);
+  background: linear-gradient(
+    145deg,
+    rgba(248, 244, 235, 0.58) 0%,
+    rgba(224, 219, 206, 0.46) 100%
+  );
+  border-color: rgba(53, 95, 78, 0.3);
 }
 
-/* Аккуратная стрелочка, указывающая точно в центр целевой кнопки */
-.onboarding-arrow {
+/* Изящная стрелочка сверху облачка, указывающая строго в центр кнопки «Читать вслух» */
+.onboarding-arrow-svg {
   position: absolute;
-  left: var(--arrow-left, 44px);
-  width: 16px;
-  height: 16px;
-  background-color: rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transform: translateX(-50%) rotate(45deg);
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 12px;
   pointer-events: none;
+  overflow: visible;
 }
 
-html[data-theme="evening"] .onboarding-arrow {
-  background-color: rgba(244, 240, 230, 0.88);
+.onboarding-arrow-fill {
+  fill: rgba(242, 248, 245, 0.82);
 }
 
-/* Стрелочка сверху облачка (указывает вверх на кнопку над облачком) */
-.onboarding-glass[data-arrow-dir="up"] .onboarding-arrow {
-  top: -8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.9);
-  border-left: 1px solid rgba(255, 255, 255, 0.9);
+html[data-theme="evening"] .onboarding-arrow-fill {
+  fill: rgba(240, 236, 226, 0.84);
 }
 
-/* Стрелочка снизу облачка (указывает вниз на кнопку под облачком) */
-.onboarding-glass[data-arrow-dir="down"] .onboarding-arrow {
-  bottom: -8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.9);
-  border-right: 1px solid rgba(255, 255, 255, 0.9);
+.onboarding-arrow-stroke {
+  stroke: rgba(61, 107, 88, 0.34);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .onboarding-glass-text {
-  margin: 0 0 14px;
-  font-size: 16px;
+  margin: 0 0 12px;
+  font-size: 15.5px;
   font-weight: 500;
-  line-height: 1.48;
+  line-height: 1.46;
   color: var(--text-main);
 }
 
@@ -1409,13 +1420,14 @@ html[data-theme="evening"] .onboarding-arrow {
 }
 
 .onboarding-glass-btn {
-  min-height: 40px;
-  padding: 8px 20px;
+  min-height: 36px;
+  padding: 6px 18px;
   border-radius: var(--radius-pill);
-  background-color: var(--accent-sage);
+  background-color: rgba(61, 107, 88, 0.9);
   color: #FFFFFF;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 600;
+  box-shadow: 0 3px 10px rgba(61, 107, 88, 0.2);
 }
 
 /* ==========================================================================
