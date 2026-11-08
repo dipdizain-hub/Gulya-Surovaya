@@ -1,44 +1,53 @@
 /* ==========================================================================
    КНИГА ВЯЗАНИЯ СПИЦАМИ — Интерактивное ядро AgeTech-каталога (Vanilla JS)
+   Версия v2: автоскрытие шапки, плавающие боковые кнопки озвучки (0.6x без обрывов),
+   эстетичное обучение при прокрутке и схемы во весь экран с кружком-подсказкой.
    ========================================================================== */
 
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "kniga_vyazaniya_state_v1";
+  var STORAGE_KEY = "kniga_vyazaniya_state_v2";
+  var LEGACY_KEY = "kniga_vyazaniya_state_v1";
   var CATALOG = window.KNITTING_CATALOG || { categories: [], articles: [] };
 
-  // Состояние пользователя (сохраняется в памяти браузера без регистрации)
+  // Доступные скорости озвучки (изначально очень медленная — 0.6x)
+  var TTS_SPEEDS = [0.6, 0.75, 0.9, 0.5];
+
   var defaultState = {
-    fontScale: "normal", // 'normal' (20px) | 'large' (23px) | 'xlarge' (26px)
-    theme: "day",        // 'day' | 'evening'
-    favorites: [],       // массив slug
-    counters: {},        // { [slug]: { activePart: string, values: { [partId]: number }, collapsed: false } }
-    checkedSteps: {},    // { [slug]: { [stepId]: true } }
-    rulerPositions: {},  // { [chartId]: number (px или %) }
-    rulerVisible: true,
-    lastOpened: null,    // { slug: string, updatedAt: number }
-    ttsRate: 0.85,       // спокойный темп речи по умолчанию
-    wakeLockEnabled: true
+    fontScale: "normal",   // 'normal' (20px) | 'large' (23px) | 'xlarge' (26px)
+    theme: "day",          // 'day' | 'evening'
+    favorites: [],         // массив slug
+    checkedSteps: {},      // { [slug]: { [stepId]: true } }
+    lastOpened: null,      // { slug: string, updatedAt: number }
+    ttsRate: 0.6,          // изначально очень медленный голос (0.6)
+    wakeLockEnabled: true,
+    onboardingDisabled: false,
+    seenHints: {}          // { homeWelcome: true, voiceStart: true, chartOpen: true, stepSpeak: true }
   };
 
   var state = loadState();
 
-  // Оперативное состояние текущей страницы, озвучки, Wake Lock и окна схемы
   var runtime = {
     currentRoute: { view: "home", param: null },
     searchQuery: "",
+    lastScrollY: 0,
     wakeLockSentinel: null,
     wakeLockSupported: "wakeLock" in navigator,
     wakeLockActive: false,
     tts: {
       supported: "speechSynthesis" in window && "SpeechSynthesisUtterance" in window,
-      speaking: false,
-      paused: false,
+      active: false,         // открыта ли боковая панель кнопок озвучки
+      speaking: false,       // произносится ли сейчас речь
+      paused: false,         // поставлено ли на паузу
+      autoAdvance: true,     // переходить ли автоматически к следующему шагу
       articleSlug: null,
-      stepsQueue: [], // [{ stepId, label, sectionTitle, text }]
+      stepsQueue: [],        // [{ stepId, label, sectionTitle, text }]
       currentIndex: 0,
-      keepAliveTimer: null
+      chunks: [],            // части текущего абзаца для чтения без обрывов
+      currentChunkIndex: 0,
+      sessionToken: 0,       // защита от ложных срабатываний onend после cancel()
+      activeUtterance: null  // ссылка от сборки мусора мобильного браузера
     },
     chartModal: {
       isOpen: false,
@@ -49,43 +58,60 @@
       tx: 0,
       ty: 0,
       imgW: 1000,
-      imgH: 1000
+      imgH: 1000,
+      hintTimer: null,
+      isLandscapeLocked: false
     },
-    pendingConfirmAction: null,
+    onboarding: {
+      activeHintId: null,
+      activeTargetEl: null,
+      observer: null,
+      autoHideTimer: null
+    },
     toastTimer: null
   };
 
   // ==========================================================================
-  // 1. ХРАНИЛИЩЕ НАСТРОЕК И ДАННЫХ (localStorage)
+  // 1. СОХРАНЕНИЕ НАСТРОЕК (С ПЕРЕНОСОМ ИЗБРАННОГО ИЗ ПЕРВОЙ ВЕРСИИ)
   // ==========================================================================
-
-  function loadState() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return cloneDefaults();
-      var parsed = JSON.parse(raw);
-      var merged = cloneDefaults();
-      Object.keys(merged).forEach(function (k) {
-        if (parsed[k] !== undefined && parsed[k] !== null) {
-          merged[k] = parsed[k];
-        }
-      });
-      return merged;
-    } catch (e) {
-      return cloneDefaults();
-    }
-  }
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
   }
 
+  function loadState() {
+    var base = cloneDefaults();
+    try {
+      var rawV2 = localStorage.getItem(STORAGE_KEY);
+      if (rawV2) {
+        var parsed = JSON.parse(rawV2);
+        Object.keys(base).forEach(function (k) {
+          if (parsed[k] !== undefined && parsed[k] !== null) {
+            base[k] = parsed[k];
+          }
+        });
+        return base;
+      }
+      // Мягкая миграция избранного и отмеченных шагов из v1 (с новой скоростью 0.6!)
+      var rawV1 = localStorage.getItem(LEGACY_KEY);
+      if (rawV1) {
+        var old = JSON.parse(rawV1);
+        if (Array.isArray(old.favorites)) base.favorites = old.favorites;
+        if (old.checkedSteps && typeof old.checkedSteps === "object") {
+          base.checkedSteps = old.checkedSteps;
+        }
+        if (old.fontScale) base.fontScale = old.fontScale;
+        if (old.theme) base.theme = old.theme;
+        if (old.lastOpened) base.lastOpened = old.lastOpened;
+      }
+    } catch (e) {}
+    return base;
+  }
+
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      // Игнорируем переполнение в приватном режиме
-    }
+    } catch (e) {}
   }
 
   function getArticleBySlug(slug) {
@@ -110,10 +136,6 @@
       .replace(/"/g, "&quot;");
   }
 
-  // ==========================================================================
-  // 2. УВЕДОМЛЕНИЯ (КРУПНЫЕ ТОСТЫ) И ДИАЛОГ ПОДТВЕРЖДЕНИЯ
-  // ==========================================================================
-
   function showToast(message) {
     var el = document.getElementById("toast-region");
     if (!el) return;
@@ -122,30 +144,11 @@
     if (runtime.toastTimer) clearTimeout(runtime.toastTimer);
     runtime.toastTimer = setTimeout(function () {
       el.hidden = true;
-    }, 3200);
-  }
-
-  function openConfirmDialog(title, desc, onConfirm) {
-    var modal = document.getElementById("confirm-modal");
-    var titleEl = document.getElementById("confirm-title");
-    var descEl = document.getElementById("confirm-desc");
-    if (!modal) return;
-    titleEl.textContent = title;
-    descEl.textContent = desc;
-    runtime.pendingConfirmAction = onConfirm;
-    modal.hidden = false;
-    var cancelBtn = document.getElementById("btn-confirm-cancel");
-    if (cancelBtn) cancelBtn.focus();
-  }
-
-  function closeConfirmDialog() {
-    var modal = document.getElementById("confirm-modal");
-    if (modal) modal.hidden = true;
-    runtime.pendingConfirmAction = null;
+    }, 2800);
   }
 
   // ==========================================================================
-  // 3. НАСТРОЙКИ ЧТЕНИЯ: РАЗМЕР БУКВ (А+) И ВЕЧЕРНИЙ ТЁПЛЫЙ СВЕТ
+  // 2. ВЕРХНЯЯ ПАНЕЛЬ: КОМПАКТНЫЕ КНОПКИ И АВТОСКРЫТИЕ ПРИ ПРОКРУТКЕ ВНИЗ
   // ==========================================================================
 
   function applyVisualPreferences() {
@@ -156,11 +159,11 @@
     var scaleLabel = document.getElementById("font-scale-label");
     if (scaleLabel) {
       var map = {
-        normal: "Буквы 100%",
+        normal: "100%",
         large: "Крупно",
-        xlarge: "Очень крупно"
+        xlarge: "Макс."
       };
-      scaleLabel.textContent = map[state.fontScale] || "Буквы";
+      scaleLabel.textContent = map[state.fontScale] || "100%";
     }
 
     var themeBtn = document.getElementById("btn-theme-toggle");
@@ -170,7 +173,7 @@
       var isEvening = state.theme === "evening";
       themeBtn.setAttribute("aria-pressed", isEvening ? "true" : "false");
       themeIcon.textContent = isEvening ? "☀" : "🌙";
-      themeLabel.textContent = isEvening ? "Дневной" : "Вечерний";
+      themeLabel.textContent = isEvening ? "День" : "Вечер";
     }
   }
 
@@ -182,9 +185,9 @@
     applyVisualPreferences();
 
     var names = {
-      normal: "Обычный крупный шрифт (20 пт)",
-      large: "Увеличенный шрифт (23 пт)",
-      xlarge: "Максимально крупный шрифт (26 пт)"
+      normal: "Стандартный крупный шрифт",
+      large: "Увеличенный шрифт",
+      xlarge: "Максимально крупный шрифт"
     };
     showToast(names[state.fontScale]);
   }
@@ -195,13 +198,45 @@
     applyVisualPreferences();
     showToast(
       state.theme === "evening"
-        ? "Включён тёплый вечерний свет для вязания при лампе"
-        : "Включён светлый дневной режим"
+        ? "Тёплый вечерний свет включён"
+        : "Дневной светлый режим включён"
+    );
+  }
+
+  function showHeaderBar() {
+    var header = document.getElementById("site-header");
+    if (header) header.classList.remove("is-hidden");
+  }
+
+  function initHeaderAutoHide() {
+    runtime.lastScrollY = window.pageYOffset || 0;
+    window.addEventListener(
+      "scroll",
+      function () {
+        var header = document.getElementById("site-header");
+        if (!header || runtime.chartModal.isOpen) return;
+
+        var currentY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop || 0);
+        var delta = currentY - runtime.lastScrollY;
+
+        if (currentY <= 44) {
+          header.classList.remove("is-hidden");
+        } else if (delta > 9 && currentY > 64) {
+          // Прокрутка вниз — плавно убираем верхний блок, освобождая весь экран
+          header.classList.add("is-hidden");
+        } else if (delta < -9) {
+          // Прокрутка вверх — сразу возвращаем верхний блок
+          header.classList.remove("is-hidden");
+        }
+
+        runtime.lastScrollY = currentY;
+      },
+      { passive: true }
     );
   }
 
   // ==========================================================================
-  // 4. ИЗБРАННОЕ («МОЁ ЛЮБИМОЕ» БЕЗ ПАРОЛЕЙ)
+  // 3. ИЗБРАННОЕ («МОЁ ЛЮБИМОЕ» БЕЗ ПАРОЛЕЙ)
   // ==========================================================================
 
   function isFavorite(slug) {
@@ -220,212 +255,14 @@
     saveState();
     showToast(
       added
-        ? "♥ Добавлено в раздел «Моё любимое»"
-        : "Убрано из раздела «Моё любимое»"
+        ? "♥ Сохранено в «Моё любимое»"
+        : "Убрано из «Моё любимое»"
     );
     return added;
   }
 
   // ==========================================================================
-  // 5. СЧЁТЧИК РЯДОВ (СОХРАНЕНИЕ ДЛЯ КАЖДОГО УЗОРА И ЛЕВОЙ/ПРАВОЙ ДЕТАЛИ)
-  // ==========================================================================
-
-  function ensureCounterState(article) {
-    if (!state.counters[article.slug]) {
-      var defaultPart =
-        article.counterParts && article.counterParts.length
-          ? article.counterParts[0].id
-          : "main";
-      state.counters[article.slug] = {
-        activePart: defaultPart,
-        values: {},
-        collapsed: false
-      };
-    }
-    var c = state.counters[article.slug];
-    var parts =
-      article.counterParts && article.counterParts.length
-        ? article.counterParts
-        : [{ id: "main", label: "Основное полотно" }];
-    parts.forEach(function (p) {
-      if (typeof c.values[p.id] !== "number") {
-        c.values[p.id] = 0;
-      }
-    });
-    if (!c.activePart || c.values[c.activePart] === undefined) {
-      c.activePart = parts[0].id;
-    }
-    return c;
-  }
-
-  function getActivePartInfo(article) {
-    var c = ensureCounterState(article);
-    var parts =
-      article.counterParts && article.counterParts.length
-        ? article.counterParts
-        : [{ id: "main", label: "Основное полотно" }];
-    var activeObj = parts[0];
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].id === c.activePart) {
-        activeObj = parts[i];
-        break;
-      }
-    }
-    return {
-      partId: activeObj.id,
-      partLabel: activeObj.label,
-      count: c.values[activeObj.id] || 0,
-      collapsed: !!c.collapsed,
-      parts: parts
-    };
-  }
-
-  function changeRowCount(slug, delta) {
-    var article = getArticleBySlug(slug);
-    if (!article) return;
-    var c = ensureCounterState(article);
-    var next = Math.max(0, (c.values[c.activePart] || 0) + delta);
-    c.values[c.activePart] = next;
-    state.lastOpened = { slug: slug, updatedAt: Date.now() };
-    saveState();
-
-    // Лёгкий тактильный отклик на телефонах Android
-    if (delta > 0 && navigator.vibrate) {
-      try {
-        navigator.vibrate(18);
-      } catch (e) {}
-    }
-
-    renderCounterDock(article);
-    syncChartModalCounter();
-  }
-
-  function switchCounterPart(slug, partId) {
-    var article = getArticleBySlug(slug);
-    if (!article) return;
-    var c = ensureCounterState(article);
-    c.activePart = partId;
-    saveState();
-    renderCounterDock(article);
-    syncChartModalCounter();
-  }
-
-  function toggleCounterCollapse(slug) {
-    var article = getArticleBySlug(slug);
-    if (!article) return;
-    var c = ensureCounterState(article);
-    c.collapsed = !c.collapsed;
-    saveState();
-    renderCounterDock(article);
-  }
-
-  function requestResetCounter(slug) {
-    var article = getArticleBySlug(slug);
-    if (!article) return;
-    var info = getActivePartInfo(article);
-    if (info.count === 0) {
-      showToast("Счётчик уже равен 0");
-      return;
-    }
-    openConfirmDialog(
-      "Сбросить счётчик рядов на 0?",
-      "Сейчас выбрано «" + info.partLabel + "», связано рядов: " + info.count + ".",
-      function () {
-        var c = ensureCounterState(article);
-        c.values[c.activePart] = 0;
-        saveState();
-        renderCounterDock(article);
-        syncChartModalCounter();
-        showToast("Счётчик «" + info.partLabel + "» обнулён");
-      }
-    );
-  }
-
-  function renderCounterDock(article) {
-    var dock = document.getElementById("row-counter-dock");
-    if (!dock) return;
-    if (!article) {
-      dock.hidden = true;
-      document.body.classList.remove("has-counter-dock");
-      return;
-    }
-
-    var info = getActivePartInfo(article);
-    dock.hidden = false;
-    document.body.classList.add("has-counter-dock");
-
-    if (info.collapsed) {
-      dock.innerHTML =
-        '<div class="counter-dock-inner counter-collapsed-bar">' +
-        '<div><strong>' +
-        escapeHtml(info.partLabel) +
-        ": ряд " +
-        info.count +
-        "</strong></div>" +
-        '<div style="display:flex;gap:8px;">' +
-        '<button type="button" class="chart-cnt-plus" data-action="cnt-plus" data-slug="' +
-        escapeHtml(article.slug) +
-        '">+1 ряд</button>' +
-        '<button type="button" class="counter-collapse-btn" data-action="cnt-collapse" data-slug="' +
-        escapeHtml(article.slug) +
-        '">Развернуть ▲</button>' +
-        "</div>" +
-        "</div>";
-      return;
-    }
-
-    var tabsHtml = info.parts
-      .map(function (p) {
-        var val = state.counters[article.slug].values[p.id] || 0;
-        var activeCls = p.id === info.partId ? " is-active" : "";
-        return (
-          '<button type="button" class="part-tab-btn' +
-          activeCls +
-          '" data-action="cnt-part" data-slug="' +
-          escapeHtml(article.slug) +
-          '" data-part="' +
-          escapeHtml(p.id) +
-          '">' +
-          escapeHtml(p.label) +
-          " (" +
-          val +
-          ")</button>"
-        );
-      })
-      .join("");
-
-    dock.innerHTML =
-      '<div class="counter-dock-inner">' +
-      '<div class="counter-dock-top">' +
-      '<div class="counter-parts-tabs" role="tablist" aria-label="Выбор детали для счёта рядов">' +
-      tabsHtml +
-      "</div>" +
-      '<button type="button" class="counter-collapse-btn" data-action="cnt-collapse" data-slug="' +
-      escapeHtml(article.slug) +
-      '" aria-label="Свернуть панель счётчика">Свернуть ▼</button>' +
-      "</div>" +
-      '<div class="counter-main-row">' +
-      '<div class="counter-readout" aria-live="polite">' +
-      '<span class="counter-readout-label">Ряд</span>' +
-      '<span class="counter-readout-num">' +
-      info.count +
-      "</span>" +
-      "</div>" +
-      '<button type="button" class="counter-btn-minus" data-action="cnt-minus" data-slug="' +
-      escapeHtml(article.slug) +
-      '" aria-label="Убавить один ряд">−1</button>' +
-      '<button type="button" class="counter-btn-reset" data-action="cnt-reset" data-slug="' +
-      escapeHtml(article.slug) +
-      '" aria-label="Сбросить счётчик рядов">Сброс</button>' +
-      '<button type="button" class="counter-btn-plus" data-action="cnt-plus" data-slug="' +
-      escapeHtml(article.slug) +
-      '">+1 ряд</button>' +
-      "</div>" +
-      "</div>";
-  }
-
-  // ==========================================================================
-  // 6. ЗАПРЕТ ГАШЕНИЯ ЭКРАНА (SCREEN WAKE LOCK API)
+  // 4. ЗАПРЕТ ГАШЕНИЯ ЭКРАНА (SCREEN WAKE LOCK API)
   // ==========================================================================
 
   async function acquireWakeLockIfNeeded() {
@@ -482,33 +319,22 @@
     if (!bar || !textEl || !btnEl) return;
 
     if (!runtime.wakeLockSupported) {
-      bar.classList.remove("is-active");
-      textEl.textContent =
-        "ℹ Ваш браузер управляет подсветкой экрана автоматически. При чтении больших схем нажимайте «Открыть схему крупно».";
-      btnEl.hidden = true;
+      bar.hidden = true;
       return;
     }
 
-    btnEl.hidden = false;
-    if (state.wakeLockEnabled && runtime.wakeLockActive) {
+    bar.hidden = false;
+    if (state.wakeLockEnabled) {
       bar.classList.add("is-active");
-      textEl.textContent =
-        "☀ Экран не гаснет: телефон остаётся включённым, пока открыто описание";
-      btnEl.textContent = "Разрешить гаснуть";
-    } else if (state.wakeLockEnabled && !runtime.wakeLockActive) {
-      bar.classList.add("is-active");
-      textEl.textContent =
-        "☀ Режим «Экран не гаснет» включён (активируется при касании страницы)";
-      btnEl.textContent = "Разрешить гаснуть";
+      textEl.textContent = "☀ Экран не гаснет, пока открыто описание";
+      btnEl.textContent = "Выключить";
     } else {
       bar.classList.remove("is-active");
-      textEl.textContent =
-        "🌙 Обычный режим экрана (телефон может гаснуть по таймеру)";
-      btnEl.textContent = "Не гасить экран";
+      textEl.textContent = "🌙 Обычное гашение экрана по таймеру";
+      btnEl.textContent = "Не гасить";
     }
   }
 
-  // Повторный захват Wake Lock после возврата в браузер или первого касания
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") {
       acquireWakeLockIfNeeded();
@@ -516,13 +342,12 @@
   });
 
   // ==========================================================================
-  // 7. ОЗВУЧКА ОПИСАНИЙ (WEB SPEECH API) + СЛОВАРЬ СОКРАЩЕНИЙ ВЯЗАЛЬЩИЦЫ
+  // 5. ПОЛНАЯ ОЗВУЧКА БЕЗ ОБРЫВОВ (0.6×) + ПЛАВАЮЩИЕ БОКОВЫЕ КНОПКИ
   // ==========================================================================
 
   function expandKnittingAbbreviations(text) {
     var s = " " + String(text || "") + " ";
 
-    // Англоязычные и специальные обозначения бриоши и ажурных шалей
     s = s.replace(/\b2вм\.?\s*лиц\.?/gi, "две петли вместе лицевой");
     s = s.replace(/\bСнять\s*1\s*лиц\.?/gi, "снять одну петлю как лицевую");
     s = s.replace(/\bsl1yo\b/gi, "сделать накид и снять петлю как изнаночную");
@@ -536,7 +361,6 @@
     s = s.replace(/\bknit\s+tbl\b/gi, "лицевая за заднюю стенку");
     s = s.replace(/\bNupp\b/gi, "шишечка нупп");
 
-    // Форматы размеров и резинок (36/37, 1х1, 10 × 10)
     s = s.replace(/(\d+)\s*[xх×]\s*(\d+)/gi, "$1 на $2");
     s = s.replace(/(\d+)\s*\/\s*(\d+)/g, "$1 $2");
     s = s.replace(/\bв\s+(\d+)\s*[–-]\s*(\d+)\b/gi, "с $1-го по $2-й");
@@ -544,7 +368,6 @@
     s = s.replace(/(^|\s)(\d+)\s*[–-]\s*(\d+)-м/g, "$1с $2-го по $3-м");
     s = s.replace(/(\d+(?:,\d+)?)\s*[–-]\s*(\d+(?:,\d+)?)/g, "$1, $2");
 
-    // Согласование числительных с сокращениями п., лиц., изн.
     s = s.replace(/\b1\s+п\.(?!\w)/g, "одна петля");
     s = s.replace(/\b2\s+п\.(?!\w)/g, "две петли");
     s = s.replace(/\b([34])\s+п\.(?!\w)/g, "$1 петли");
@@ -563,7 +386,6 @@
     s = s.replace(/\b(\d+)\s+изн\.(?!\w)/g, "$1 изнаночных");
     s = s.replace(/(^|\s)изн\.(?=\s|[.,;:)!?]|$)/g, "$1изнаночными");
 
-    // Прочие частые сокращения
     s = s.replace(/(^|\s)круг\.\s*р\.(?=\s|[.,;:)!?]|$)/g, "$1круговых рядов");
     s = s.replace(/(^|\s)круг\.(?=\s)/g, "$1круговых");
     s = s.replace(/(\d+)\s+р\.(?=\s|[.,;:)!?]|$)/g, "$1 рядов");
@@ -573,6 +395,49 @@
     s = s.replace(/\*/g, " , повтор раппорта: ");
 
     return s.replace(/\s+/g, " ").trim();
+  }
+
+  /*
+   * Разбиваем длинный абзац на короткие смысловые фразы (до ~95 символов).
+   * Это полностью устраняет обрыв озвучки на середине текста в мобильных браузерах
+   * даже на самой медленной скорости 0.5x–0.6x!
+   */
+  function splitIntoSpeechChunks(fullText) {
+    var clean = String(fullText || "").replace(/\s+/g, " ").trim();
+    if (!clean) return [];
+
+    // Сначала делим по концам предложений и точкам с запятой (без lookbehind для 100% совместимости со всеми iPhone/Android)
+    var rawSentences = clean.replace(/([.!?;])\s+/g, "$1\n").split("\n");
+    var chunks = [];
+    var MAX_LEN = 95;
+
+    for (var i = 0; i < rawSentences.length; i++) {
+      var part = rawSentences[i].trim();
+      if (!part) continue;
+
+      while (part.length > MAX_LEN) {
+        // Ищем ближайшую запятую, тире или двоеточие до MAX_LEN
+        var cut = -1;
+        var punctuation = [", ", " — ", ": ", ") "];
+        for (var p = 0; p < punctuation.length; p++) {
+          var idx = part.lastIndexOf(punctuation[p], MAX_LEN);
+          if (idx > 28 && idx > cut) {
+            cut = idx + punctuation[p].length - 1;
+          }
+        }
+        if (cut === -1) {
+          cut = part.lastIndexOf(" ", MAX_LEN);
+        }
+        if (cut <= 0) {
+          cut = MAX_LEN;
+        }
+        chunks.push(part.slice(0, cut + 1).trim());
+        part = part.slice(cut + 1).trim();
+      }
+      if (part) chunks.push(part);
+    }
+
+    return chunks;
   }
 
   function buildStepsQueueForArticle(article) {
@@ -591,6 +456,19 @@
     return queue;
   }
 
+  function findFirstVisibleStepIndex() {
+    var items = document.querySelectorAll(".step-item");
+    if (!items.length) return 0;
+    var vh = window.innerHeight || 640;
+    for (var i = 0; i < items.length; i++) {
+      var rect = items[i].getBoundingClientRect();
+      if (rect.bottom > 80 && rect.top < vh * 0.85) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
   function pickRussianVoice() {
     if (!runtime.tts.supported) return null;
     var voices = window.speechSynthesis.getVoices() || [];
@@ -598,7 +476,6 @@
       return v.lang && v.lang.toLowerCase().indexOf("ru") === 0;
     });
     if (!ruVoices.length) return null;
-    // Предпочитаем качественные женские голоса (Milena, Irina, Google русский)
     for (var i = 0; i < ruVoices.length; i++) {
       var name = (ruVoices[i].name || "").toLowerCase();
       if (
@@ -614,22 +491,80 @@
   }
 
   function stopTts() {
-    if (runtime.tts.keepAliveTimer) {
-      clearInterval(runtime.tts.keepAliveTimer);
-      runtime.tts.keepAliveTimer = null;
-    }
+    runtime.tts.sessionToken++;
+    runtime.tts.activeUtterance = null;
     if (runtime.tts.supported) {
       try {
         window.speechSynthesis.cancel();
       } catch (e) {}
     }
+    runtime.tts.active = false;
     runtime.tts.speaking = false;
     runtime.tts.paused = false;
-    highlightSpokenStep(null);
-    updateTtsControlsUI();
+    runtime.tts.chunks = [];
+    runtime.tts.currentChunkIndex = 0;
+    highlightSpokenStep(null, false);
+    updateTtsUI();
   }
 
-  function speakStepAtIndex(article, index, autoAdvance) {
+  function speakCurrentChunk(article) {
+    if (!runtime.tts.supported) return;
+
+    var chunks = runtime.tts.chunks;
+    if (runtime.tts.currentChunkIndex >= chunks.length) {
+      // Весь текущий абзац прочитан ДО КОНЦА!
+      if (
+        runtime.tts.autoAdvance &&
+        runtime.tts.currentIndex + 1 < runtime.tts.stepsQueue.length
+      ) {
+        startSpeakingStep(article, runtime.tts.currentIndex + 1, true, true);
+      } else {
+        // Одиночный абзац или конец статьи прочитан полностью — переводим в режим паузы/готовности
+        runtime.tts.speaking = false;
+        runtime.tts.paused = true;
+        runtime.tts.currentChunkIndex = 0;
+        updateTtsUI();
+      }
+      return;
+    }
+
+    var myToken = ++runtime.tts.sessionToken;
+    var phrase = chunks[runtime.tts.currentChunkIndex];
+    var utter = new SpeechSynthesisUtterance(phrase);
+    runtime.tts.activeUtterance = utter; // защита от GC
+
+    utter.lang = "ru-RU";
+    utter.rate = state.ttsRate || 0.6;
+    utter.pitch = 1.0;
+
+    var voice = pickRussianVoice();
+    if (voice) utter.voice = voice;
+
+    utter.onend = function () {
+      if (myToken !== runtime.tts.sessionToken) return;
+      if (!runtime.tts.speaking || runtime.tts.paused) return;
+      runtime.tts.currentChunkIndex++;
+      speakCurrentChunk(article);
+    };
+
+    utter.onerror = function (ev) {
+      if (myToken !== runtime.tts.sessionToken) return;
+      // Если мобильный движок пропустил фразу по таймауту, переходим к следующей вместо обрыва!
+      if (ev && ev.error === "interrupted") return;
+      if (runtime.tts.speaking && !runtime.tts.paused) {
+        runtime.tts.currentChunkIndex++;
+        speakCurrentChunk(article);
+      }
+    };
+
+    try {
+      window.speechSynthesis.speak(utter);
+    } catch (e) {
+      stopTts();
+    }
+  }
+
+  function startSpeakingStep(article, index, autoAdvance, allowGentleScroll) {
     if (!runtime.tts.supported) {
       showToast("В этом браузере голосовое чтение не поддерживается");
       return;
@@ -643,55 +578,30 @@
       return;
     }
 
-    stopTts();
+    runtime.tts.sessionToken++;
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+
+    var item = queue[index];
+    var expanded = expandKnittingAbbreviations(item.label + ". " + item.text);
+    var chunks = splitIntoSpeechChunks(expanded);
 
     runtime.tts.articleSlug = article.slug;
     runtime.tts.stepsQueue = queue;
     runtime.tts.currentIndex = index;
+    runtime.tts.chunks = chunks;
+    runtime.tts.currentChunkIndex = 0;
+    runtime.tts.autoAdvance = !!autoAdvance;
+    runtime.tts.active = true;
     runtime.tts.speaking = true;
     runtime.tts.paused = false;
 
-    var item = queue[index];
-    highlightSpokenStep(item.stepId);
-    updateTtsControlsUI();
+    // Не дёргаем экран при нажатии кнопки! Мягко подкручиваем только при автопереходе к следующему шагу ниже экрана
+    highlightSpokenStep(item.stepId, !!allowGentleScroll);
+    updateTtsUI();
 
-    var spokenString = expandKnittingAbbreviations(
-      item.label + ". " + item.text
-    );
-    var utter = new SpeechSynthesisUtterance(spokenString);
-    utter.lang = "ru-RU";
-    utter.rate = state.ttsRate || 0.85;
-    utter.pitch = 1.0;
-
-    var voice = pickRussianVoice();
-    if (voice) utter.voice = voice;
-
-    utter.onend = function () {
-      if (!runtime.tts.speaking) return;
-      if (autoAdvance && runtime.tts.currentIndex + 1 < queue.length) {
-        speakStepAtIndex(article, runtime.tts.currentIndex + 1, true);
-      } else {
-        stopTts();
-      }
-    };
-
-    utter.onerror = function () {
-      stopTts();
-    };
-
-    window.speechSynthesis.speak(utter);
-
-    // Обход особенности Chrome, где длинная фраза может замирать через 14 секунд
-    runtime.tts.keepAliveTimer = setInterval(function () {
-      if (
-        runtime.tts.speaking &&
-        !runtime.tts.paused &&
-        window.speechSynthesis.speaking
-      ) {
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      }
-    }, 12000);
+    speakCurrentChunk(article);
   }
 
   function togglePlayPauseTts(article) {
@@ -699,70 +609,136 @@
       showToast("Голосовое чтение недоступно в вашем браузере");
       return;
     }
-    if (!runtime.tts.speaking) {
-      speakStepAtIndex(article, runtime.tts.currentIndex || 0, true);
+    if (!runtime.tts.active) {
+      var startIdx = findFirstVisibleStepIndex();
+      startSpeakingStep(article, startIdx, true, false);
       return;
     }
-    if (runtime.tts.paused) {
-      window.speechSynthesis.resume();
+    if (runtime.tts.paused || !runtime.tts.speaking) {
+      // Надёжное продолжение с текущей фразы на всех смартфонах (Android / iOS)
+      if (!runtime.tts.chunks.length) {
+        startSpeakingStep(article, runtime.tts.currentIndex || 0, runtime.tts.autoAdvance, false);
+        return;
+      }
       runtime.tts.paused = false;
-      updateTtsControlsUI();
+      runtime.tts.speaking = true;
+      var curStep = runtime.tts.stepsQueue[runtime.tts.currentIndex];
+      if (curStep) highlightSpokenStep(curStep.stepId, false);
+      updateTtsUI();
+      speakCurrentChunk(article);
     } else {
-      window.speechSynthesis.pause();
+      // Надёжная пауза без потери фразы
+      runtime.tts.sessionToken++;
       runtime.tts.paused = true;
-      updateTtsControlsUI();
+      runtime.tts.speaking = false;
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+      updateTtsUI();
     }
   }
 
-  function highlightSpokenStep(stepId) {
+  function cycleTtsSpeed() {
+    var cur = state.ttsRate || 0.6;
+    var bestIdx = 0;
+    for (var i = 0; i < TTS_SPEEDS.length; i++) {
+      if (Math.abs(TTS_SPEEDS[i] - cur) < 0.03) {
+        bestIdx = i;
+        break;
+      }
+    }
+    var nextRate = TTS_SPEEDS[(bestIdx + 1) % TTS_SPEEDS.length];
+    state.ttsRate = nextRate;
+    saveState();
+
+    var labels = {
+      "0.5": "Скорость 0.5× (самая медленная)",
+      "0.6": "Скорость 0.6× (очень медленно)",
+      "0.75": "Скорость 0.75× (спокойно)",
+      "0.9": "Скорость 0.9× (побыстрее)"
+    };
+    showToast(labels[String(nextRate)] || "Скорость голоса: " + nextRate + "×");
+
+    updateTtsUI();
+
+    // Если сейчас идёт чтение — сразу применяем новую скорость с текущей фразы!
+    if (runtime.tts.active && runtime.tts.speaking && !runtime.tts.paused) {
+      var art = getArticleBySlug(runtime.tts.articleSlug);
+      if (art) {
+        runtime.tts.sessionToken++;
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
+        speakCurrentChunk(art);
+      }
+    }
+  }
+
+  function highlightSpokenStep(stepId, allowGentleScroll) {
     var all = document.querySelectorAll(".step-item");
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       var btn = el.querySelector(".step-speak-btn");
       if (stepId && el.getAttribute("data-step-id") === stepId) {
         el.classList.add("is-speaking");
-        if (btn) btn.textContent = "🔊 Читается…";
-        try {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        } catch (e) {}
+        if (btn) {
+          btn.textContent = runtime.tts.paused ? "▶ Продолжить" : "⏸ Пауза";
+        }
+        if (allowGentleScroll) {
+          var rect = el.getBoundingClientRect();
+          var vh = window.innerHeight || 640;
+          if (rect.top < 60 || rect.bottom > vh - 40) {
+            try {
+              el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            } catch (e) {}
+          }
+        }
       } else {
         el.classList.remove("is-speaking");
-        if (btn) btn.textContent = "🔊 Озвучить шаг";
+        if (btn) btn.textContent = "🔊 Озвучить";
       }
     }
   }
 
-  function updateTtsControlsUI() {
-    var mainBtn = document.getElementById("btn-tts-play");
-    var statusSub = document.getElementById("tts-status-sub");
-    if (!mainBtn) return;
+  function updateTtsUI() {
+    var rail = document.getElementById("tts-fab-rail");
+    var toggleIcon = document.getElementById("fab-tts-toggle-icon");
+    var toggleText = document.getElementById("fab-tts-toggle-text");
+    var speedVal = document.getElementById("fab-tts-speed-val");
+    var topStartBtn = document.getElementById("btn-voice-main");
 
-    if (!runtime.tts.speaking) {
-      mainBtn.textContent = "🔊 Читать описание вслух";
-      if (statusSub) {
-        statusSub.textContent =
-          "Спокойный голос зачитает ряды по порядку, расшифровывая все сокращения (лиц., изн., п.).";
+    if (speedVal) {
+      speedVal.textContent = (state.ttsRate || 0.6) + "×";
+    }
+
+    if (rail) {
+      rail.hidden = !runtime.tts.active;
+    }
+
+    if (toggleIcon && toggleText) {
+      if (runtime.tts.speaking && !runtime.tts.paused) {
+        toggleIcon.textContent = "⏸";
+        toggleText.textContent = "Пауза";
+      } else {
+        toggleIcon.textContent = "▶";
+        toggleText.textContent = "Старт";
       }
-    } else if (runtime.tts.paused) {
-      mainBtn.textContent = "▶ Продолжить чтение";
-      if (statusSub) {
-        var pItem = runtime.tts.stepsQueue[runtime.tts.currentIndex];
-        statusSub.textContent =
-          "Пауза на шаге: «" + (pItem ? pItem.label : "") + "»";
+    }
+
+    if (topStartBtn) {
+      if (!runtime.tts.active) {
+        topStartBtn.textContent = "🔊 Читать вслух (медленно " + (state.ttsRate || 0.6) + "×)";
+      } else if (runtime.tts.speaking && !runtime.tts.paused) {
+        topStartBtn.textContent = "⏸ Пауза озвучки";
+      } else {
+        topStartBtn.textContent = "▶ Продолжить озвучку";
       }
-    } else {
-      mainBtn.textContent = "⏸ Пауза";
-      if (statusSub) {
-        var cur = runtime.tts.stepsQueue[runtime.tts.currentIndex];
-        statusSub.textContent =
-          "Сейчас звучит шаг " +
-          (runtime.tts.currentIndex + 1) +
-          " из " +
-          runtime.tts.stepsQueue.length +
-          ": «" +
-          (cur ? cur.label : "") +
-          "»";
-      }
+    }
+
+    // Обновляем текст кнопки на активном абзаце
+    if (runtime.tts.active && runtime.tts.stepsQueue[runtime.tts.currentIndex]) {
+      var sid = runtime.tts.stepsQueue[runtime.tts.currentIndex].stepId;
+      highlightSpokenStep(sid, false);
     }
   }
 
@@ -771,8 +747,37 @@
   }
 
   // ==========================================================================
-  // 8. ПОЛНОЭКРАННОЕ ОКНО СХЕМЫ С ПИНЧ-ЗУМОМ И ЛИНЕЙКОЙ РЯДА
+  // 6. ПОЛНОЭКРАННЫЙ ПРОСМОТР СХЕМЫ (НА 100% ЭКРАНА + ВСПЛЫВАЮЩАЯ ПОДСКАЗКА И КРУЖОК)
   // ==========================================================================
+
+  function clearChartHintTimer() {
+    if (runtime.chartModal.hintTimer) {
+      clearTimeout(runtime.chartModal.hintTimer);
+      runtime.chartModal.hintTimer = null;
+    }
+  }
+
+  function showChartHintForSeconds(seconds) {
+    var bubble = document.getElementById("chart-hint-bubble");
+    var dot = document.getElementById("chart-hint-dot");
+    if (!bubble || !dot) return;
+
+    clearChartHintTimer();
+    bubble.hidden = false;
+    dot.hidden = true;
+
+    runtime.chartModal.hintTimer = setTimeout(function () {
+      collapseChartHintToDot();
+    }, seconds * 1000);
+  }
+
+  function collapseChartHintToDot() {
+    clearChartHintTimer();
+    var bubble = document.getElementById("chart-hint-bubble");
+    var dot = document.getElementById("chart-hint-dot");
+    if (bubble) bubble.hidden = true;
+    if (dot) dot.hidden = false;
+  }
 
   function openChartModal(articleSlug, chartId, directSrc, directTitle, directHint) {
     var article = getArticleBySlug(articleSlug);
@@ -789,70 +794,124 @@
     var src = chartObj ? chartObj.src : directSrc;
     var title = chartObj ? chartObj.title : directTitle || "Схема узора";
     var hint = chartObj
-      ? chartObj.hint || chartObj.subtitle || ""
-      : directHint || "Двигайте схему одним пальцем, увеличивайте двумя пальцами или кнопками + и −.";
-    var keyId = chartId || src;
+      ? chartObj.hint || chartObj.subtitle || "Раздвигайте схему двумя пальцами для увеличения."
+      : directHint || "Раздвигайте изображение двумя пальцами или поверните телефон горизонтально.";
 
     var modal = document.getElementById("chart-modal");
     var titleEl = document.getElementById("chart-modal-title");
     var hintEl = document.getElementById("chart-modal-hint");
     var imgEl = document.getElementById("chart-modal-img");
-    var rulerEl = document.getElementById("chart-ruler");
-    var rulerToggleBtn = document.getElementById("btn-toggle-ruler");
 
-    if (!modal || !imgEl) return;
+    if (!modal || !imgEl || !src) return;
+
+    dismissActiveCoachmark(true);
 
     runtime.chartModal.isOpen = true;
     runtime.chartModal.articleSlug = articleSlug;
-    runtime.chartModal.chartId = keyId;
+    runtime.chartModal.chartId = chartId || src;
 
     titleEl.textContent = title;
     hintEl.textContent = hint;
     modal.hidden = false;
     document.body.style.overflow = "hidden";
 
-    // Линейка ряда
-    rulerEl.hidden = !state.rulerVisible;
-    if (rulerToggleBtn) {
-      rulerToggleBtn.setAttribute("aria-pressed", state.rulerVisible ? "true" : "false");
-    }
-    var savedPct = state.rulerPositions[keyId];
-    var pct = typeof savedPct === "number" ? savedPct : 42;
-    rulerEl.style.top = pct + "%";
-
-    syncChartModalCounter();
+    // При открытии подсказка появляется на 12 секунд (10–15 сек), затем остаётся кружок
+    showChartHintForSeconds(12);
     acquireWakeLockIfNeeded();
 
-    imgEl.onload = function () {
-      runtime.chartModal.imgW = imgEl.naturalWidth || 900;
-      runtime.chartModal.imgH = imgEl.naturalHeight || 900;
-      fitChartToViewport();
+    var applyLoadedDimensions = function () {
+      if (!runtime.chartModal.isOpen) return;
+      runtime.chartModal.imgW = imgEl.naturalWidth || 1000;
+      runtime.chartModal.imgH = imgEl.naturalHeight || 1000;
+      // Двойной rAF гарантирует точные размеры экрана после открытия модального окна
+      requestAnimationFrame(function () {
+        fitChartToViewport();
+      });
     };
+
+    imgEl.onload = applyLoadedDimensions;
     imgEl.src = src;
     imgEl.alt = title;
-
-    var closeBtn = document.getElementById("btn-chart-close");
-    if (closeBtn) closeBtn.focus();
+    if (imgEl.complete && imgEl.naturalWidth > 0) {
+      applyLoadedDimensions();
+    }
   }
 
   function closeChartModal() {
+    clearChartHintTimer();
     var modal = document.getElementById("chart-modal");
-    if (!modal) return;
-    modal.hidden = true;
+    if (modal) modal.hidden = true;
     runtime.chartModal.isOpen = false;
     document.body.style.overflow = "";
+
+    // Выходим из полноэкранного системного режима, если он включался для автоповорота
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(function () {});
+    }
+    if (screen.orientation && screen.orientation.unlock) {
+      try {
+        screen.orientation.unlock();
+      } catch (e) {}
+    }
+    runtime.chartModal.isLandscapeLocked = false;
     acquireWakeLockIfNeeded();
   }
 
+  function toggleChartLandscapeMode() {
+    var modal = document.getElementById("chart-modal");
+    if (!modal) return;
+
+    // Пробуем перевести в системный полноэкранный горизонтальный режим (работает на Android Chrome)
+    if (!runtime.chartModal.isLandscapeLocked) {
+      var reqFs =
+        modal.requestFullscreen ||
+        modal.webkitRequestFullscreen ||
+        document.documentElement.requestFullscreen;
+      if (reqFs) {
+        Promise.resolve(reqFs.call(modal))
+          .then(function () {
+            if (screen.orientation && screen.orientation.lock) {
+              return screen.orientation.lock("landscape");
+            }
+          })
+          .then(function () {
+            runtime.chartModal.isLandscapeLocked = true;
+            setTimeout(fitChartToViewport, 180);
+          })
+          .catch(function () {
+            showToast("Поверните телефон горизонтально — схема развернётся во весь экран");
+            setTimeout(fitChartToViewport, 180);
+          });
+      } else {
+        showToast("Поверните телефон горизонтально — схема развернётся во весь экран");
+      }
+    } else {
+      if (screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock();
+        } catch (e) {}
+      }
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+      runtime.chartModal.isLandscapeLocked = false;
+      setTimeout(fitChartToViewport, 180);
+    }
+  }
+
+  /*
+   * Схема сразу открывается максимально крупно, занимая практически 100% экрана
+   * (как в портретном, так и в горизонтальном положении телефона).
+   */
   function fitChartToViewport() {
     var vp = document.getElementById("chart-viewport");
     if (!vp) return;
-    var vw = vp.clientWidth || 360;
-    var vh = vp.clientHeight || 480;
-    var iw = runtime.chartModal.imgW || 800;
-    var ih = runtime.chartModal.imgH || 800;
+    var vw = vp.clientWidth || window.innerWidth || 360;
+    var vh = vp.clientHeight || window.innerHeight || 640;
+    var iw = runtime.chartModal.imgW || 1000;
+    var ih = runtime.chartModal.imgH || 1000;
 
-    var pad = 16;
+    var pad = 4; // минимальный отступ 4px — картинка занимает практически весь экран!
     var fit = Math.min((vw - pad * 2) / iw, (vh - pad * 2) / ih);
     if (!isFinite(fit) || fit <= 0) fit = 1;
 
@@ -866,30 +925,24 @@
   function clampChartPan() {
     var vp = document.getElementById("chart-viewport");
     if (!vp) return;
-    var vw = vp.clientWidth || 360;
-    var vh = vp.clientHeight || 480;
+    var vw = vp.clientWidth || window.innerWidth || 360;
+    var vh = vp.clientHeight || window.innerHeight || 640;
     var sw = runtime.chartModal.imgW * runtime.chartModal.scale;
     var sh = runtime.chartModal.imgH * runtime.chartModal.scale;
 
-    // Не даём схеме «улететь» за пределы экрана: минимум 25% остаётся на виду
-    var marginX = Math.min(120, vw * 0.35);
-    var marginY = Math.min(120, vh * 0.35);
-
-    var minTx = vw - sw - (vw - marginX);
-    var maxTx = vw - marginX;
     if (sw <= vw) {
       runtime.chartModal.tx = Math.round((vw - sw) / 2);
     } else {
-      minTx = vw - sw - 40;
-      maxTx = 40;
+      var minTx = vw - sw - 24;
+      var maxTx = 24;
       runtime.chartModal.tx = Math.max(minTx, Math.min(maxTx, runtime.chartModal.tx));
     }
 
     if (sh <= vh) {
       runtime.chartModal.ty = Math.round((vh - sh) / 2);
     } else {
-      var minTy = vh - sh - 60;
-      var maxTy = 60;
+      var minTy = vh - sh - 24;
+      var maxTy = 24;
       runtime.chartModal.ty = Math.max(minTy, Math.min(maxTy, runtime.chartModal.ty));
     }
   }
@@ -902,8 +955,8 @@
       cy = vp.clientHeight / 2;
     }
 
-    var minScale = runtime.chartModal.fitScale * 0.75;
-    var maxScale = runtime.chartModal.fitScale * 5.0;
+    var minScale = runtime.chartModal.fitScale * 0.9;
+    var maxScale = runtime.chartModal.fitScale * 6.0;
     var oldScale = runtime.chartModal.scale;
     var newScale = Math.max(minScale, Math.min(maxScale, oldScale * factor));
     var ratio = newScale / oldScale;
@@ -918,7 +971,6 @@
 
   function applyChartTransform() {
     var stage = document.getElementById("chart-stage");
-    var pctLabel = document.getElementById("zoom-pct-label");
     if (stage) {
       stage.style.transform =
         "translate3d(" +
@@ -929,45 +981,10 @@
         runtime.chartModal.scale.toFixed(4) +
         ")";
     }
-    if (pctLabel && runtime.chartModal.fitScale > 0) {
-      var relPct = Math.round(
-        (runtime.chartModal.scale / runtime.chartModal.fitScale) * 100
-      );
-      pctLabel.textContent = relPct + "%";
-    }
-  }
-
-  function syncChartModalCounter() {
-    var box = document.getElementById("chart-inline-counter");
-    if (!box) return;
-    var article = getArticleBySlug(runtime.chartModal.articleSlug);
-    if (!article) {
-      box.hidden = true;
-      return;
-    }
-    box.hidden = false;
-    var info = getActivePartInfo(article);
-    var partEl = document.getElementById("chart-counter-part");
-    var valEl = document.getElementById("chart-counter-val");
-    if (partEl) partEl.textContent = info.partLabel;
-    if (valEl) valEl.textContent = "Ряд: " + info.count;
-  }
-
-  function setRulerPercent(pct) {
-    var clamped = Math.max(6, Math.min(82, pct));
-    var rulerEl = document.getElementById("chart-ruler");
-    if (rulerEl) {
-      rulerEl.style.top = clamped.toFixed(1) + "%";
-    }
-    if (runtime.chartModal.chartId) {
-      state.rulerPositions[runtime.chartModal.chartId] = clamped;
-      saveState();
-    }
   }
 
   function initChartModalGestures() {
     var vp = document.getElementById("chart-viewport");
-    var handle = document.getElementById("chart-ruler-handle");
     if (!vp) return;
 
     var draggingPan = false;
@@ -978,6 +995,7 @@
 
     var pinching = false;
     var startPinchDist = 0;
+    var lastTapTime = 0;
 
     function getTouchDist(t1, t2) {
       var dx = t1.clientX - t2.clientX;
@@ -988,12 +1006,27 @@
     vp.addEventListener(
       "touchstart",
       function (e) {
-        if (e.target.closest("#chart-ruler")) return;
         if (e.touches.length === 2) {
           pinching = true;
           draggingPan = false;
           startPinchDist = getTouchDist(e.touches[0], e.touches[1]);
         } else if (e.touches.length === 1) {
+          // Двойное касание увеличивает участок схемы в 2.2 раза или возвращает на весь экран
+          var now = Date.now();
+          if (now - lastTapTime < 280) {
+            var rect = vp.getBoundingClientRect();
+            var tx = e.touches[0].clientX - rect.left;
+            var ty = e.touches[0].clientY - rect.top;
+            if (runtime.chartModal.scale > runtime.chartModal.fitScale * 1.25) {
+              fitChartToViewport();
+            } else {
+              zoomChartAroundPoint(2.2, tx, ty);
+            }
+            lastTapTime = 0;
+            return;
+          }
+          lastTapTime = now;
+
           draggingPan = true;
           pinching = false;
           panStartX = e.touches[0].clientX;
@@ -1008,7 +1041,6 @@
     vp.addEventListener(
       "touchmove",
       function (e) {
-        if (e.target.closest("#chart-ruler")) return;
         if (pinching && e.touches.length === 2) {
           e.preventDefault();
           var dist = getTouchDist(e.touches[0], e.touches[1]);
@@ -1035,10 +1067,9 @@
       pinching = false;
     });
 
-    // Перетаскивание мышью на компьютере/планшете
+    // Поддержка мыши
     var mouseDown = false;
     vp.addEventListener("mousedown", function (e) {
-      if (e.target.closest("#chart-ruler")) return;
       mouseDown = true;
       panStartX = e.clientX;
       panStartY = e.clientY;
@@ -1064,72 +1095,187 @@
         if (!runtime.chartModal.isOpen) return;
         e.preventDefault();
         var rect = vp.getBoundingClientRect();
-        var factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+        var factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
         zoomChartAroundPoint(factor, e.clientX - rect.left, e.clientY - rect.top);
       },
       { passive: false }
     );
+  }
 
-    // Перетаскивание линейки ряда пальцем или мышью
-    if (handle) {
-      var draggingRuler = false;
+  // ==========================================================================
+  // 7. ЭСТЕТИЧНОЕ МИНИ-ОБУЧЕНИЕ ПО МЕРЕ ПРОКРУТКИ (COACHMARKS)
+  // ==========================================================================
 
-      var moveRulerToClientY = function (clientY) {
-        var rect = vp.getBoundingClientRect();
-        if (!rect.height) return;
-        var pct = ((clientY - rect.top - 22) / rect.height) * 100;
-        setRulerPercent(pct);
-      };
+  function disconnectOnboardingObserver() {
+    if (runtime.onboarding.observer) {
+      runtime.onboarding.observer.disconnect();
+      runtime.onboarding.observer = null;
+    }
+  }
 
-      handle.addEventListener(
-        "touchstart",
-        function (e) {
-          draggingRuler = true;
-          e.stopPropagation();
-        },
-        { passive: true }
+  function dismissActiveCoachmark(markSeen) {
+    if (runtime.onboarding.autoHideTimer) {
+      clearTimeout(runtime.onboarding.autoHideTimer);
+      runtime.onboarding.autoHideTimer = null;
+    }
+    if (markSeen && runtime.onboarding.activeHintId) {
+      state.seenHints[runtime.onboarding.activeHintId] = true;
+      saveState();
+    }
+    if (runtime.onboarding.activeTargetEl) {
+      runtime.onboarding.activeTargetEl.removeAttribute("data-coach-highlight");
+      runtime.onboarding.activeTargetEl = null;
+    }
+    runtime.onboarding.activeHintId = null;
+    var pop = document.getElementById("onboarding-popover");
+    if (pop) pop.hidden = true;
+  }
+
+  function showCoachmark(hintId, targetEl, title, desc) {
+    if (state.onboardingDisabled || state.seenHints[hintId]) return;
+    if (runtime.chartModal.isOpen) return;
+    if (runtime.onboarding.activeHintId) return; // не накладываем подсказки друг на друга
+
+    var pop = document.getElementById("onboarding-popover");
+    var titleEl = document.getElementById("onboarding-popover-title");
+    var descEl = document.getElementById("onboarding-popover-desc");
+    if (!pop || !titleEl || !descEl) return;
+
+    runtime.onboarding.activeHintId = hintId;
+    runtime.onboarding.activeTargetEl = targetEl || null;
+    if (targetEl) {
+      targetEl.setAttribute("data-coach-highlight", "true");
+    }
+
+    titleEl.textContent = title;
+    descEl.textContent = desc;
+    pop.hidden = false;
+
+    // Автоматически отмечаем подсказку прочитанной через 16 секунд, чтобы не мешать чтению
+    runtime.onboarding.autoHideTimer = setTimeout(function () {
+      dismissActiveCoachmark(true);
+    }, 16000);
+  }
+
+  function setupHomeOnboarding() {
+    disconnectOnboardingObserver();
+    dismissActiveCoachmark(false);
+    if (state.onboardingDisabled || state.seenHints.homeWelcome) return;
+
+    setTimeout(function () {
+      if (runtime.currentRoute.view !== "home") return;
+      var firstOpenBtn = document.querySelector(".article-card .btn-primary");
+      showCoachmark(
+        "homeWelcome",
+        firstOpenBtn,
+        "Добро пожаловать в Книгу вязания!",
+        "Нажмите «Открыть описание и схемы» на любом изделии — внутри текст можно слушать медленным голосом, а схемы раскрывать во весь экран."
       );
+    }, 600);
+  }
 
-      window.addEventListener(
-        "touchmove",
-        function (e) {
-          if (!draggingRuler || !e.touches.length) return;
-          e.preventDefault();
-          moveRulerToClientY(e.touches[0].clientY);
-        },
-        { passive: false }
-      );
+  function setupArticleScrollOnboarding() {
+    disconnectOnboardingObserver();
+    dismissActiveCoachmark(false);
+    if (state.onboardingDisabled) return;
 
-      window.addEventListener("touchend", function () {
-        draggingRuler = false;
-      });
+    var hintConfigs = [
+      {
+        id: "voiceStart",
+        selector: "#btn-voice-main",
+        title: "Нажмите сюда — включится озвучка голосом",
+        desc: "Голос читает очень медленно и разборчиво (скорость 0,6). Сбоку появятся аккуратные кнопки паузы и скорости."
+      },
+      {
+        id: "chartOpen",
+        selector: ".chart-img-btn",
+        title: "Нажмите на картинку схемы — она раскроется во весь экран",
+        desc: "Когда схема открыта, поверните телефон горизонтально — так видна каждая петелька."
+      },
+      {
+        id: "stepSpeak",
+        selector: ".step-speak-btn",
+        title: "Можно озвучить любой нужный абзац",
+        desc: "Нажмите «🔊 Озвучить» рядом с этапом — голос спокойно прочитает этот абзац до самого конца."
+      }
+    ];
 
-      handle.addEventListener("mousedown", function (e) {
-        draggingRuler = true;
-        e.stopPropagation();
-        e.preventDefault();
-      });
+    if (!("IntersectionObserver" in window)) {
+      var firstUnseen = hintConfigs.filter(function (h) {
+        return !state.seenHints[h.id];
+      })[0];
+      if (firstUnseen) {
+        var elFallback = document.querySelector(firstUnseen.selector);
+        if (elFallback) {
+          showCoachmark(firstUnseen.id, elFallback, firstUnseen.title, firstUnseen.desc);
+        }
+      }
+      return;
+    }
 
-      window.addEventListener("mousemove", function (e) {
-        if (!draggingRuler) return;
-        moveRulerToClientY(e.clientY);
-      });
+    var obs = new IntersectionObserver(
+      function (entries) {
+        if (state.onboardingDisabled || runtime.chartModal.isOpen) return;
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i];
+          if (!entry.isIntersecting) continue;
+          var hintId = entry.target.getAttribute("data-coach-id");
+          if (!hintId || state.seenHints[hintId]) continue;
+          if (runtime.onboarding.activeHintId) continue;
 
-      window.addEventListener("mouseup", function () {
-        draggingRuler = false;
-      });
+          for (var k = 0; k < hintConfigs.length; k++) {
+            if (hintConfigs[k].id === hintId) {
+              showCoachmark(
+                hintConfigs[k].id,
+                entry.target,
+                hintConfigs[k].title,
+                hintConfigs[k].desc
+              );
+              break;
+            }
+          }
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-12% 0px -18% 0px",
+        threshold: 0.45
+      }
+    );
+
+    hintConfigs.forEach(function (cfg) {
+      if (state.seenHints[cfg.id]) return;
+      var target = document.querySelector(cfg.selector);
+      if (target) {
+        target.setAttribute("data-coach-id", cfg.id);
+        obs.observe(target);
+      }
+    });
+
+    runtime.onboarding.observer = obs;
+  }
+
+  function resetOnboardingHints() {
+    state.onboardingDisabled = false;
+    state.seenHints = {};
+    saveState();
+    showToast("Подсказки включены снова");
+    if (runtime.currentRoute.view === "article") {
+      setupArticleScrollOnboarding();
+    } else if (runtime.currentRoute.view === "home") {
+      setupHomeOnboarding();
     }
   }
 
   // ==========================================================================
-  // 9. ГОЛОСОВОЙ ПОИСК УЗОРА (SPEECH RECOGNITION API)
+  // 8. ГОЛОСОВОЙ ПОИСК УЗОРА (SPEECH RECOGNITION API)
   // ==========================================================================
 
   function startVoiceSearch() {
     var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
       showToast(
-        "Голосовой поиск не поддерживается этим браузером — введите слово в поле поиска выше"
+        "Голосовой поиск не поддерживается этим браузером — введите слово в поле выше"
       );
       return;
     }
@@ -1144,7 +1290,7 @@
       btn.classList.add("voice-listening");
       btn.textContent = "🎤 Говорите название узора…";
     }
-    showToast("Говорите, например: «носки», «бриошь» или «шаль»");
+    showToast("Скажите, например: «носки», «бриошь» или «шаль»");
 
     rec.onresult = function (event) {
       var phrase =
@@ -1159,7 +1305,7 @@
         renderHomeView();
         var inp = document.getElementById("search-input");
         if (inp) inp.value = phrase;
-        showToast("Поиск по запросу: «" + phrase + "»");
+        showToast("Найдено по запросу: «" + phrase + "»");
       }
     };
 
@@ -1181,7 +1327,7 @@
   }
 
   // ==========================================================================
-  // 10. ШАБЛОНЫ КАРТОЧЕК И СТРАНИЦ (МАРШРУТИЗАТОР: ГЛАВНАЯ / РУБРИКА / ИЗБРАННОЕ / СТАТЬЯ)
+  // 9. ШАБЛОНЫ СТРАНИЦ (ГЛАВНАЯ / РУБРИКА / ЛЮБИМОЕ / ТЕМА ВЯЗАНИЯ)
   // ==========================================================================
 
   function updateHeaderNavigation(route) {
@@ -1191,29 +1337,25 @@
     if (route.view === "home") {
       leftEl.innerHTML =
         '<a href="#/" class="brand-link" aria-label="Главная страница каталога">' +
-        '<img src="./assets/icon.svg" alt="" class="brand-icon" width="44" height="44">' +
-        '<span class="brand-text">' +
+        '<img src="./assets/icon.svg" alt="" class="brand-icon" width="30" height="30">' +
         '<strong class="brand-title">Книга вязания</strong>' +
-        '<span class="brand-sub">Спицами · каталог</span>' +
-        "</span>" +
         "</a>";
     } else if (route.view === "article") {
       var art = getArticleBySlug(route.param);
       var backHref = art ? "#/category/" + encodeURIComponent(art.categoryId) : "#/";
       leftEl.innerHTML =
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
-        '<a href="#/" class="back-nav-btn">← На главную</a>' +
+        '<div style="display:flex;gap:6px;align-items:center;min-width:0;">' +
+        '<a href="#/" class="back-nav-btn">← Назад</a>' +
         (art
           ? '<a href="' +
             backHref +
-            '" class="btn btn-secondary" style="min-height:54px;padding:10px 14px;font-size:0.88rem;">Рубрика: ' +
+            '" class="header-cat-link">' +
             escapeHtml(art.categoryTitle) +
             "</a>"
           : "") +
         "</div>";
     } else {
-      leftEl.innerHTML =
-        '<a href="#/" class="back-nav-btn">← Назад в каталог</a>';
+      leftEl.innerHTML = '<a href="#/" class="back-nav-btn">← В каталог</a>';
     }
   }
 
@@ -1308,28 +1450,23 @@
     var art = getArticleBySlug(state.lastOpened.slug);
     if (!art) return "";
 
-    var info = getActivePartInfo(art);
     var checkedMap = state.checkedSteps[art.slug] || {};
     var doneCount = Object.keys(checkedMap).filter(function (k) {
       return checkedMap[k];
     }).length;
 
     return (
-      '<section class="continue-card" aria-label="Продолжить начатое вязание">' +
-      '<span class="continue-badge">Вы недавно вязали</span>' +
+      '<section class="continue-card" aria-label="Недавно открытое описание">' +
+      '<span class="continue-badge">Вы недавно открывали</span>' +
       '<h2 class="continue-title">' +
       escapeHtml(art.title) +
       "</h2>" +
-      '<p class="continue-meta">' +
-      escapeHtml(info.partLabel) +
-      ": <strong>ряд " +
-      info.count +
-      "</strong>" +
-      (doneCount > 0 ? " · отмечено шагов: " + doneCount : "") +
-      "</p>" +
+      (doneCount > 0
+        ? '<p class="continue-meta">Отмечено выполненных этапов: ' + doneCount + "</p>"
+        : "") +
       '<a href="#/article/' +
       encodeURIComponent(art.slug) +
-      '" class="btn btn-green btn-block">Продолжить с этого места →</a>' +
+      '" class="btn btn-green btn-block">Вернуться к этому описанию →</a>' +
       "</section>"
     );
   }
@@ -1337,8 +1474,6 @@
   function renderHomeView() {
     var main = document.getElementById("app-main");
     if (!main) return;
-
-    renderCounterDock(null);
 
     var filtered = filterArticlesByQuery(runtime.searchQuery);
     var favCount = state.favorites.length;
@@ -1359,14 +1494,14 @@
 
         var statusHtml =
           readyCount > 0
-            ? '<div class="category-card-count">Готово на сайте: ' +
+            ? '<div class="category-card-count">На сайте: ' +
               readyCount +
               " описание (в полном архиве — " +
               cat.archiveCount +
               ")</div>"
             : '<div class="category-card-count is-pending">В архиве: ' +
               cat.archiveCount +
-              " описаний (подключатся на 2-м этапе)</div>";
+              " описаний (2-й этап)</div>";
 
         var btnHtml =
           readyCount > 0
@@ -1377,7 +1512,7 @@
               "» →</a>"
             : '<a href="#/category/' +
               encodeURIComponent(cat.id) +
-              '" class="btn btn-secondary btn-block">Посмотреть информацию о рубрике</a>';
+              '" class="btn btn-secondary btn-block">О рубрике</a>';
 
         return (
           '<div class="category-card">' +
@@ -1422,9 +1557,9 @@
     main.innerHTML =
       '<section class="hero-box">' +
       '<h1 class="hero-title">Книга вязания спицами</h1>' +
-      '<p class="hero-subtitle">Крупный шрифт, чёткие схемы на весь экран, чтение рядов голосом и автоматический счётчик рядов.</p>' +
+      '<p class="hero-subtitle">Крупный шрифт, схемы во весь экран и спокойное чтение описания голосом.</p>' +
       '<div class="search-panel" role="search">' +
-      '<label for="search-input" style="font-weight:700;">Быстрый поиск по узорам и пряже:</label>' +
+      '<label for="search-input" style="font-weight:700;">Поиск по узорам и пряже:</label>' +
       '<div class="search-input-wrap">' +
       '<input type="search" id="search-input" class="search-input" placeholder="Например: носки, бриошь, шаль…" value="' +
       escapeHtml(runtime.searchQuery) +
@@ -1449,18 +1584,18 @@
       '<h2 id="pilot-list-heading" class="section-heading">' +
       resultsTitle +
       "</h2>" +
-      '<p class="section-lead">Нажмите на любое изделие, чтобы открыть пошаговое описание, увеличить схемы или включить озвучку.</p>' +
+      '<p class="section-lead">Нажмите на изделие, чтобы открыть описание, развернуть схемы во весь экран или включить озвучку.</p>' +
       articlesHtml +
       "</section>" +
       '<section aria-labelledby="cats-heading">' +
-      '<h2 id="cats-heading" class="section-heading">Все рубрики библиотеки (5 разделов)</h2>' +
-      '<p class="section-lead">Для удобной проверки на телефоне сейчас перенесено по 1 материалу из 3 рубрик (со всеми фотографиями, схемами и PDF).</p>' +
+      '<h2 id="cats-heading" class="section-heading">Рубрики библиотеки (5 разделов)</h2>' +
       '<div class="categories-grid">' +
       categoriesHtml +
       "</div>" +
       "</section>";
 
     bindSearchInput();
+    setupHomeOnboarding();
   }
 
   function bindSearchInput() {
@@ -1483,7 +1618,8 @@
   function renderCategoryView(catId) {
     var main = document.getElementById("app-main");
     if (!main) return;
-    renderCounterDock(null);
+    disconnectOnboardingObserver();
+    dismissActiveCoachmark(false);
 
     var cat = getCategoryById(catId);
     if (!cat) {
@@ -1528,7 +1664,8 @@
   function renderFavoritesView() {
     var main = document.getElementById("app-main");
     if (!main) return;
-    renderCounterDock(null);
+    disconnectOnboardingObserver();
+    dismissActiveCoachmark(false);
 
     var favArticles = CATALOG.articles.filter(function (a) {
       return isFavorite(a.slug);
@@ -1540,14 +1677,14 @@
         "</div>"
       : '<div class="empty-state-box">' +
         "<h2>В разделе «Моё любимое» пока пусто</h2>" +
-        "<p>Нажмите кнопку <strong>«♡ Отложить в любимое»</strong> на любом понравившемся узоре — он появится здесь без паролей и регистрации.</p>" +
+        "<p>Нажмите <strong>«♡ Отложить в любимое»</strong> на понравившемся узоре — он сохранится здесь без паролей.</p>" +
         '<a href="#/" class="btn btn-primary" style="margin-top:12px;">Посмотреть каталог описаний</a>' +
         "</div>";
 
     main.innerHTML =
       '<div class="hero-box">' +
       '<h1 class="hero-title">♥ Моё любимое</h1>' +
-      '<p class="hero-subtitle">Отложенные описания сохраняются прямо на вашем телефоне.</p>' +
+      '<p class="hero-subtitle">Отложенные описания всегда под рукой на вашем телефоне.</p>' +
       "</div>" +
       listHtml;
   }
@@ -1562,9 +1699,7 @@
       return;
     }
 
-    // Запоминаем последнее открытое описание для карточки «Продолжить вязание»
     state.lastOpened = { slug: article.slug, updatedAt: Date.now() };
-    ensureCounterState(article);
     saveState();
 
     runtime.tts.currentIndex = 0;
@@ -1609,9 +1744,9 @@
           escapeHtml(article.slug) +
           '" data-chart-id="' +
           escapeHtml(ch.id) +
-          '" aria-label="Увеличить схему ' +
+          '" aria-label="Открыть схему ' +
           escapeHtml(ch.title) +
-          ' на весь экран">' +
+          ' во весь экран">' +
           '<img src="' +
           escapeHtml(ch.src) +
           '" alt="' +
@@ -1622,7 +1757,7 @@
           escapeHtml(article.slug) +
           '" data-chart-id="' +
           escapeHtml(ch.id) +
-          '">🔍 Открыть эту схему на весь экран (с линейкой рядов)</button>' +
+          '">🔍 Открыть схему во весь экран</button>' +
           "</div>"
         );
       })
@@ -1655,7 +1790,7 @@
             escapeHtml(article.slug) +
             '" data-chart-id="' +
             escapeHtml(sec.chartId) +
-            '">🔍 Открыть схему к этому этапу</button>';
+            '">🔍 Схема к этапу</button>';
         }
 
         var stepsHtml = (sec.steps || [])
@@ -1685,7 +1820,7 @@
               escapeHtml(article.slug) +
               '" data-step-index="' +
               myIdx +
-              '">🔊 Озвучить шаг</button>' +
+              '">🔊 Озвучить</button>' +
               "</div>" +
               '<p class="step-text">' +
               escapeHtml(st.text) +
@@ -1719,7 +1854,13 @@
         extraPhotos
           .map(function (ph) {
             return (
-              '<figure class="photo-figure">' +
+              '<figure class="photo-figure" data-action="open-photo" data-slug="' +
+              escapeHtml(article.slug) +
+              '" data-src="' +
+              escapeHtml(ph.src) +
+              '" data-caption="' +
+              escapeHtml(ph.caption) +
+              '">' +
               '<img src="' +
               escapeHtml(ph.src) +
               '" alt="' +
@@ -1736,29 +1877,9 @@
         "</section>"
       : "";
 
-    var speedOptions = [
-      { val: 0.75, label: "Медленно" },
-      { val: 0.85, label: "Спокойно" },
-      { val: 1.0, label: "Обычно" }
-    ];
-    var speedChipsHtml = speedOptions
-      .map(function (opt) {
-        var sel = Math.abs((state.ttsRate || 0.85) - opt.val) < 0.03 ? " is-selected" : "";
-        return (
-          '<button type="button" class="speed-chip' +
-          sel +
-          '" data-action="tts-speed" data-rate="' +
-          opt.val +
-          '">' +
-          opt.label +
-          "</button>"
-        );
-      })
-      .join("");
-
     main.innerHTML =
-      // 1. Шапка описания
       '<article>' +
+      // 1. Шапка описания
       '<header class="article-header-card">' +
       '<span class="article-cat-pill">Рубрика: ' +
       escapeHtml(article.categoryTitle) +
@@ -1769,7 +1890,13 @@
       '<p class="article-subtitle-main">' +
       escapeHtml(article.subtitle) +
       "</p>" +
-      '<div class="article-hero-photo-wrap">' +
+      '<div class="article-hero-photo-wrap" data-action="open-photo" data-slug="' +
+      escapeHtml(article.slug) +
+      '" data-src="' +
+      escapeHtml(article.coverImage) +
+      '" data-caption="' +
+      escapeHtml(article.title) +
+      '" style="cursor:zoom-in;">' +
       '<img src="' +
       escapeHtml(article.coverImage) +
       '" alt="' +
@@ -1784,56 +1911,43 @@
       '">' +
       favBtnLabel +
       "</button>" +
-      '<a href="#charts-anchor" class="btn btn-primary" data-action="jump-charts">🔍 Перейти сразу к схемам (' +
+      '<a href="#charts-anchor" class="btn btn-primary" data-action="jump-charts">🔍 Схемы узора (' +
       article.charts.length +
       ")</a>" +
       "</div>" +
       "</header>" +
-      // 2. Индикатор «Экран не гаснет»
+      // 2. Аккуратная компактная полоса включения голоса (управление выезжает сбоку плавающими кнопками!)
+      '<div class="voice-start-strip no-print">' +
+      '<div class="voice-start-info">' +
+      "<strong>Медленное чтение голосом</strong>" +
+      "<span>Кнопки паузы и скорости появятся сбоку экрана</span>" +
+      "</div>" +
+      '<button type="button" id="btn-voice-main" class="voice-start-btn" data-action="tts-play" data-slug="' +
+      escapeHtml(article.slug) +
+      '">🔊 Читать вслух (медленно ' +
+      (state.ttsRate || 0.6) +
+      "×)</button>" +
+      "</div>" +
+      // 3. Компактный статус защиты экрана от гашения
       '<div id="wakelock-bar" class="wakelock-bar no-print">' +
-      '<span id="wakelock-status-text" class="wakelock-status-text">☀ Проверяем защиту экрана от гашения…</span>' +
+      '<span id="wakelock-status-text" class="wakelock-status-text">☀ Экран не гаснет</span>' +
       '<button type="button" id="btn-wakelock-toggle" class="wakelock-toggle-btn" data-action="toggle-wakelock">Переключить</button>' +
       "</div>" +
-      // 3. Голосовое чтение описания вслух
-      '<section class="tts-card no-print" aria-label="Голосовое чтение описания">' +
-      '<div class="tts-card-header">' +
-      "<div>" +
-      '<h2 class="tts-title">🔊 Слушать описание голосом (руки свободны)</h2>' +
-      '<p id="tts-status-sub" class="tts-sub">Спокойный голос зачитает ряды по порядку, расшифровывая все сокращения (лиц., изн., п.).</p>' +
-      "</div>" +
-      "</div>" +
-      '<div class="tts-controls-grid">' +
-      '<button type="button" id="btn-tts-play" class="btn btn-green btn-tts-main" data-action="tts-play" data-slug="' +
-      escapeHtml(article.slug) +
-      '">🔊 Читать описание вслух</button>' +
-      '<button type="button" class="btn btn-secondary" data-action="tts-repeat" data-slug="' +
-      escapeHtml(article.slug) +
-      '">↺ Повторить шаг</button>' +
-      '<button type="button" class="btn btn-secondary" data-action="tts-next" data-slug="' +
-      escapeHtml(article.slug) +
-      '">Дальше →</button>' +
-      "</div>" +
-      '<div class="tts-speed-row">' +
-      '<span class="tts-speed-label">Скорость голоса:</span>' +
-      speedChipsHtml +
-      '<button type="button" class="speed-chip" data-action="tts-stop" style="margin-left:auto;">⏹ Стоп</button>' +
-      "</div>" +
-      "</section>" +
-      // 4. Паспорт изделия (Размеры, пряжа, спицы, плотность)
+      // 4. Пряжа, спицы и плотность
       '<section class="specs-card">' +
       '<h2 class="card-block-title">Пряжа, спицы и плотность вязания</h2>' +
       '<ul class="specs-list">' +
       specsHtml +
       "</ul>" +
       "</section>" +
-      // 5. Схемы узора (крупно + увеличение на весь экран с линейкой)
+      // 5. Схемы узора (нажатие открывает на 100% экрана)
       '<section id="charts-anchor" class="charts-section-card">' +
-      '<h2 class="card-block-title">Схемы узора (нажмите, чтобы открыть на весь экран)</h2>' +
+      '<h2 class="card-block-title">Схемы узора (нажмите на картинку — откроется во весь экран)</h2>' +
       '<div class="charts-stack">' +
       chartsHtml +
       "</div>" +
       "</section>" +
-      // 6. Условные обозначения и приёмы
+      // 6. Условные обозначения
       '<section class="glossary-card">' +
       '<h2 class="card-block-title">Узоры, петли и условные обозначения</h2>' +
       '<div class="glossary-list">' +
@@ -1844,30 +1958,31 @@
       sectionsHtml +
       // 8. Дополнительные фотографии
       galleryHtml +
-      // 9. Печать крупным шрифтом + скачивание оригинального PDF со схемами
+      // 9. Печать крупным шрифтом и оригинальный PDF
       '<section class="print-download-card no-print">' +
       '<h2 class="card-block-title">Распечатать на бумаге или сохранить PDF</h2>' +
-      '<p style="margin:0 0 16px;color:var(--text-muted);">Вы можете распечатать чистое описание очень крупным шрифтом без лишних кнопок или открыть оригинальный архивный PDF со всеми схемами.</p>' +
+      '<p style="margin:0 0 14px;color:var(--text-muted);">Вы можете распечатать чистое описание очень крупным шрифтом или открыть архивный PDF со схемами.</p>' +
       '<div class="article-card-actions">' +
-      '<button type="button" class="btn btn-primary" data-action="print-large">🖨 Печать / сохранить крупным шрифтом</button>' +
+      '<button type="button" class="btn btn-primary" data-action="print-large">🖨 Печать крупным шрифтом</button>' +
       '<a href="' +
       escapeHtml(article.originalPdf) +
-      '" target="_blank" rel="noopener" class="btn btn-secondary">📄 Открыть оригинальный PDF со схемами</a>' +
+      '" target="_blank" rel="noopener" class="btn btn-secondary">📄 Оригинальный PDF со схемами</a>' +
       "</div>" +
       '<p class="source-credit">Первоисточник модели: <a href="' +
       escapeHtml(article.sourceUrl) +
       '" target="_blank" rel="noopener noreferrer">' +
       escapeHtml(article.sourceName) +
       "</a></p>" +
+      '<button type="button" class="replay-hints-link" data-action="replay-hints">Показать подсказки по сайту заново</button>' +
       "</section>" +
       "</article>";
 
-    renderCounterDock(article);
     acquireWakeLockIfNeeded();
+    setupArticleScrollOnboarding();
   }
 
   // ==========================================================================
-  // 11. МАРШРУТИЗАТОР И ОБРАБОТЧИКИ СОБЫТИЙ
+  // 10. МАРШРУТИЗАТОР И ОБРАБОТЧИКИ СОБЫТИЙ
   // ==========================================================================
 
   function parseHash() {
@@ -1895,6 +2010,7 @@
     if (runtime.chartModal.isOpen) {
       closeChartModal();
     }
+    showHeaderBar();
 
     var route = parseHash();
     runtime.currentRoute = route;
@@ -1914,19 +2030,73 @@
     }
 
     window.scrollTo(0, 0);
+    runtime.lastScrollY = 0;
   }
 
   function bindGlobalEvents() {
-    // Кнопки шапки
-    var fontBtn = document.getElementById("btn-font-scale");
-    if (fontBtn) fontBtn.addEventListener("click", cycleFontScale);
+    document.getElementById("btn-font-scale").addEventListener("click", cycleFontScale);
+    document.getElementById("btn-theme-toggle").addEventListener("click", toggleTheme);
 
-    var themeBtn = document.getElementById("btn-theme-toggle");
-    if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+    // Плавающие боковые кнопки озвучки (#tts-fab-rail)
+    document.getElementById("fab-tts-toggle").addEventListener("click", function () {
+      var art = getArticleBySlug(runtime.tts.articleSlug || runtime.currentRoute.param);
+      if (art) togglePlayPauseTts(art);
+    });
 
-    // Делегирование всех кнопок с атрибутом data-action
+    document.getElementById("fab-tts-speed").addEventListener("click", cycleTtsSpeed);
+
+    document.getElementById("fab-tts-repeat").addEventListener("click", function () {
+      var art = getArticleBySlug(runtime.tts.articleSlug || runtime.currentRoute.param);
+      if (art) {
+        startSpeakingStep(art, runtime.tts.currentIndex || 0, runtime.tts.autoAdvance, false);
+      }
+    });
+
+    document.getElementById("fab-tts-next").addEventListener("click", function () {
+      var art = getArticleBySlug(runtime.tts.articleSlug || runtime.currentRoute.param);
+      if (art) {
+        startSpeakingStep(art, (runtime.tts.currentIndex || 0) + 1, true, true);
+      }
+    });
+
+    document.getElementById("fab-tts-stop").addEventListener("click", stopTts);
+
+    // Кнопки обучения (coachmarks)
+    document.getElementById("btn-onboarding-ok").addEventListener("click", function () {
+      dismissActiveCoachmark(true);
+    });
+    document.getElementById("btn-onboarding-skip-all").addEventListener("click", function () {
+      state.onboardingDisabled = true;
+      saveState();
+      disconnectOnboardingObserver();
+      dismissActiveCoachmark(true);
+      showToast("Подсказки скрыты");
+    });
+
+    // Всплывающая подсказка и кружок внутри окна схемы
+    document.getElementById("chart-hint-bubble").addEventListener("click", function () {
+      // Повторное нажатие на сам текст подсказки сразу скрывает его в кружок
+      collapseChartHintToDot();
+    });
+
+    document.getElementById("chart-hint-dot").addEventListener("click", function () {
+      // Нажатие на кружок снова показывает текст подсказки на 18 секунд (15–20 сек)
+      showChartHintForSeconds(18);
+    });
+
+    // Кнопки внутри окна схемы
+    document.getElementById("btn-chart-close").addEventListener("click", closeChartModal);
+    document.getElementById("btn-chart-rotate").addEventListener("click", toggleChartLandscapeMode);
+    document.getElementById("btn-zoom-in").addEventListener("click", function () {
+      zoomChartAroundPoint(1.35);
+    });
+    document.getElementById("btn-zoom-out").addEventListener("click", function () {
+      zoomChartAroundPoint(1 / 1.35);
+    });
+    document.getElementById("btn-zoom-reset").addEventListener("click", fitChartToViewport);
+
+    // Делегирование кнопок на страницах
     document.addEventListener("click", function (e) {
-      // Любое касание на странице описания помогает активировать Wake Lock на мобильных браузерах
       if (
         runtime.currentRoute.view === "article" &&
         state.wakeLockEnabled &&
@@ -1937,6 +2107,11 @@
 
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
+
+      // Если пользователь нажал на подсвеченный подсказкой элемент — засчитываем подсказку
+      if (btn.getAttribute("data-coach-highlight") === "true") {
+        dismissActiveCoachmark(true);
+      }
 
       var action = btn.getAttribute("data-action");
       var slug = btn.getAttribute("data-slug");
@@ -1982,57 +2157,12 @@
         state.wakeLockEnabled = !state.wakeLockEnabled;
         saveState();
         acquireWakeLockIfNeeded();
-        showToast(
-          state.wakeLockEnabled
-            ? "☀ Включена защита от гашения экрана"
-            : "🌙 Защита от гашения экрана выключена"
-        );
         return;
       }
 
-      // Озвучка описания (TTS)
       if (action === "tts-play" && slug) {
         var artPlay = getArticleBySlug(slug);
         if (artPlay) togglePlayPauseTts(artPlay);
-        return;
-      }
-
-      if (action === "tts-repeat" && slug) {
-        var artRep = getArticleBySlug(slug);
-        if (artRep) speakStepAtIndex(artRep, runtime.tts.currentIndex || 0, true);
-        return;
-      }
-
-      if (action === "tts-next" && slug) {
-        var artNext = getArticleBySlug(slug);
-        if (artNext) {
-          var nextIdx = runtime.tts.speaking
-            ? runtime.tts.currentIndex + 1
-            : (runtime.tts.currentIndex || 0) + 1;
-          speakStepAtIndex(artNext, nextIdx, true);
-        }
-        return;
-      }
-
-      if (action === "tts-stop") {
-        stopTts();
-        return;
-      }
-
-      if (action === "tts-speed") {
-        var rate = parseFloat(btn.getAttribute("data-rate") || "0.85");
-        state.ttsRate = rate;
-        saveState();
-        var chips = document.querySelectorAll("[data-action='tts-speed']");
-        for (var i = 0; i < chips.length; i++) {
-          chips[i].classList.toggle("is-selected", chips[i] === btn);
-        }
-        if (runtime.tts.speaking && runtime.tts.articleSlug) {
-          var curArt = getArticleBySlug(runtime.tts.articleSlug);
-          if (curArt) speakStepAtIndex(curArt, runtime.tts.currentIndex, true);
-        } else {
-          showToast("Скорость чтения сохранена");
-        }
         return;
       }
 
@@ -2041,51 +2171,45 @@
         var artStep = getArticleBySlug(slug);
         if (artStep) {
           if (
-            runtime.tts.speaking &&
-            !runtime.tts.paused &&
+            runtime.tts.active &&
             runtime.tts.currentIndex === stepIdx
           ) {
-            stopTts();
+            togglePlayPauseTts(artStep);
           } else {
-            speakStepAtIndex(artStep, stepIdx, true);
+            // Озвучивает выбранный абзац полностью до последнего слова без прокрутки вверх/вниз
+            startSpeakingStep(artStep, stepIdx, false, false);
           }
         }
         return;
       }
 
-      // Открытие схемы на весь экран
       if (action === "open-chart" && slug) {
         var chartId = btn.getAttribute("data-chart-id");
         openChartModal(slug, chartId);
         return;
       }
 
-      // Печать крупным шрифтом
+      if (action === "open-photo" && slug) {
+        var phSrc = btn.getAttribute("data-src");
+        var phCap = btn.getAttribute("data-caption");
+        openChartModal(
+          slug,
+          null,
+          phSrc,
+          phCap || "Фотография модели",
+          "Раздвигайте фотографию двумя пальцами или поверните телефон горизонтально."
+        );
+        return;
+      }
+
       if (action === "print-large") {
         stopTts();
         window.print();
         return;
       }
 
-      // Счётчик рядов
-      if (action === "cnt-plus" && slug) {
-        changeRowCount(slug, 1);
-        return;
-      }
-      if (action === "cnt-minus" && slug) {
-        changeRowCount(slug, -1);
-        return;
-      }
-      if (action === "cnt-reset" && slug) {
-        requestResetCounter(slug);
-        return;
-      }
-      if (action === "cnt-part" && slug) {
-        switchCounterPart(slug, btn.getAttribute("data-part"));
-        return;
-      }
-      if (action === "cnt-collapse" && slug) {
-        toggleCounterCollapse(slug);
+      if (action === "replay-hints") {
+        resetOnboardingHints();
         return;
       }
     });
@@ -2106,83 +2230,29 @@
       if (card) card.classList.toggle("is-done", cb.checked);
     });
 
-    // Кнопки внутри полноэкранного окна схемы
-    document.getElementById("btn-chart-close").addEventListener("click", closeChartModal);
-    document.getElementById("btn-zoom-in").addEventListener("click", function () {
-      zoomChartAroundPoint(1.35);
-    });
-    document.getElementById("btn-zoom-out").addEventListener("click", function () {
-      zoomChartAroundPoint(1 / 1.35);
-    });
-    document.getElementById("btn-zoom-reset").addEventListener("click", fitChartToViewport);
-
-    document.getElementById("btn-toggle-ruler").addEventListener("click", function () {
-      state.rulerVisible = !state.rulerVisible;
-      saveState();
-      var rulerEl = document.getElementById("chart-ruler");
-      var btn = document.getElementById("btn-toggle-ruler");
-      if (rulerEl) rulerEl.hidden = !state.rulerVisible;
-      if (btn) btn.setAttribute("aria-pressed", state.rulerVisible ? "true" : "false");
-    });
-
-    document.getElementById("btn-ruler-up").addEventListener("click", function () {
-      var cur =
-        state.rulerPositions[runtime.chartModal.chartId] !== undefined
-          ? state.rulerPositions[runtime.chartModal.chartId]
-          : 42;
-      setRulerPercent(cur - 4);
-    });
-
-    document.getElementById("btn-ruler-down").addEventListener("click", function () {
-      var cur =
-        state.rulerPositions[runtime.chartModal.chartId] !== undefined
-          ? state.rulerPositions[runtime.chartModal.chartId]
-          : 42;
-      setRulerPercent(cur + 4);
-    });
-
-    document.getElementById("btn-chart-row-plus").addEventListener("click", function () {
-      if (runtime.chartModal.articleSlug) {
-        changeRowCount(runtime.chartModal.articleSlug, 1);
-      }
-    });
-
-    document.getElementById("btn-chart-row-minus").addEventListener("click", function () {
-      if (runtime.chartModal.articleSlug) {
-        changeRowCount(runtime.chartModal.articleSlug, -1);
-      }
-    });
-
-    // Модальное окно подтверждения сброса счётчика
-    document.getElementById("btn-confirm-cancel").addEventListener("click", closeConfirmDialog);
-    document.getElementById("btn-confirm-yes").addEventListener("click", function () {
-      var fn = runtime.pendingConfirmAction;
-      closeConfirmDialog();
-      if (typeof fn === "function") fn();
-    });
-
-    // Клавиша Escape закрывает модальные окна
     window.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        if (!document.getElementById("confirm-modal").hidden) {
-          closeConfirmDialog();
-        } else if (runtime.chartModal.isOpen) {
-          closeChartModal();
-        }
+      if (e.key === "Escape" && runtime.chartModal.isOpen) {
+        closeChartModal();
       }
     });
 
     window.addEventListener("hashchange", handleRouteChange);
-    window.addEventListener("resize", function () {
+
+    // Автоматическая подгонка схемы на 100% экрана при повороте телефона в горизонтальный режим
+    var onViewportChange = function () {
       if (runtime.chartModal.isOpen) {
-        clampChartPan();
-        applyChartTransform();
+        setTimeout(fitChartToViewport, 80);
       }
-    });
+    };
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("orientationchange", onViewportChange);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", onViewportChange);
+    }
   }
 
   // ==========================================================================
-  // 12. РЕГИСТРАЦИЯ SERVICE WORKER ДЛЯ РАБОТЫ ОФЛАЙН (НА ДАЧЕ / БЕЗ СЕТИ)
+  // 11. SERVICE WORKER (ОБНОВЛЁННЫЙ КЭШ V2)
   // ==========================================================================
 
   function registerOfflineWorker() {
@@ -2193,8 +2263,8 @@
     }
   }
 
-  // Запуск приложения
   applyVisualPreferences();
+  initHeaderAutoHide();
   initChartModalGestures();
   bindGlobalEvents();
   handleRouteChange();

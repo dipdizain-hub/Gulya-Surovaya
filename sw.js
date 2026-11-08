@@ -1,14 +1,14 @@
-// Service Worker «Книга вязания спицами»
-// Обеспечивает быструю загрузку и доступ к открытым описаниям и схемам даже без интернета (на даче / в дороге).
+// Service Worker «Книга вязания спицами» (v2)
+// Мгновенно подгружает свежие обновления при наличии интернета и сохраняет копию для работы офлайн.
 
-const CACHE_NAME = "kniga-vyazaniya-v1";
+const CACHE_NAME = "kniga-vyazaniya-v2";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./data/articles.js",
-  "./manifest.webmanifest",
+  "./styles.css?v=2",
+  "./app.js?v=2",
+  "./data/articles.js?v=2",
+  "./manifest.webmanifest?v=2",
   "./assets/icon.svg",
   "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
@@ -47,11 +47,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Стратегия Network-First с сохранением в кэш: свежие обновления сразу видны онлайн, а офлайн отдаётся копия
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-cache" })
       .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
