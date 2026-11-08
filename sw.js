@@ -1,16 +1,18 @@
-// Service Worker «Книга вязания спицами» (v7 — Партия 1 рубрики «Носки и следки», PDF и полноэкранное горизонтальное видео)
+// Service Worker «Книга вязания спицами» (v8 — Партия 2А рубрики «Носки и следки»)
 
-const CACHE_NAME = "kniga-vyazaniya-v7";
+const CACHE_NAME = "kniga-vyazaniya-v8";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=7",
-  "./app.js?v=7",
-  "./data/articles.js?v=7",
-  "./data/cat-01-batch1.js?v=7",
-  "./manifest.webmanifest?v=7",
-  "./assets/icon.svg?v=7",
-  "./assets/images/welcome-gulsinya.webp?v=7"
+  "./styles.css?v=8",
+  "./app.js?v=8",
+  "./data/articles.js?v=8",
+  "./data/cat-01-batch1.js?v=8",
+  "./data/cat-01-batch2a.js?v=8",
+  "./data/cat-01-batch2b.js?v=8",
+  "./manifest.webmanifest?v=8",
+  "./assets/icon.svg?v=8",
+  "./assets/images/welcome-gulsinya.webp?v=8"
 ];
 
 self.addEventListener("install", (event) => {
