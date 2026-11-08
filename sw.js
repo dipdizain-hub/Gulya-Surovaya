@@ -1,14 +1,15 @@
-// Service Worker «Книга вязания спицами» (v5 — контраст карточек и встроенное видео)
+// Service Worker «Книга вязания спицами» (v6 — приветственная открытка Гульсине)
 
-const CACHE_NAME = "kniga-vyazaniya-v5";
+const CACHE_NAME = "kniga-vyazaniya-v6";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=5",
-  "./app.js?v=5",
-  "./data/articles.js?v=5",
-  "./manifest.webmanifest?v=5",
-  "./assets/icon.svg?v=5",
+  "./styles.css?v=6",
+  "./app.js?v=6",
+  "./data/articles.js?v=6",
+  "./manifest.webmanifest?v=6",
+  "./assets/icon.svg?v=6",
+  "./assets/images/welcome-gulsinya.webp?v=6",
   "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/03.jpg",
