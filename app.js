@@ -2195,10 +2195,90 @@
     }
   }
 
+  function initWelcomeSplash() {
+    var splash = document.getElementById("welcome-splash");
+    var img = document.getElementById("welcome-splash-img");
+    if (!splash) return;
+
+    var shown = false;
+    var closed = false;
+    var autoTimer = null;
+
+    function cleanupListeners() {
+      document.removeEventListener("click", onAnyClick, true);
+      window.removeEventListener("keydown", onSplashKey);
+    }
+
+    function dismissSplash(isFastClick) {
+      if (closed) return;
+      closed = true;
+      cleanupListeners();
+
+      if (autoTimer) {
+        clearTimeout(autoTimer);
+        autoTimer = null;
+      }
+
+      splash.classList.remove("is-visible");
+      splash.classList.add(isFastClick ? "is-closing-fast" : "is-closing-auto");
+
+      var hideDelay = isFastClick ? 210 : 390;
+      setTimeout(function () {
+        splash.hidden = true;
+        if (!runtime.chartModal.isOpen && !runtime.favPopupOpen) {
+          document.body.style.overflow = "";
+        }
+      }, hideDelay);
+    }
+
+    function onAnyClick(e) {
+      if (closed) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dismissSplash(true);
+    }
+
+    function onSplashKey(e) {
+      if (closed) return;
+      if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+        dismissSplash(true);
+      }
+    }
+
+    function revealSplash() {
+      if (shown || closed) return;
+      shown = true;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (closed) return;
+          splash.classList.add("is-visible");
+          // Автоматическое исчезновение ровно через 6 секунд
+          autoTimer = setTimeout(function () {
+            dismissSplash(false);
+          }, 6000);
+        });
+      });
+    }
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("click", onAnyClick, true);
+    window.addEventListener("keydown", onSplashKey);
+
+    if (img && img.complete && img.naturalWidth > 0) {
+      revealSplash();
+    } else if (img) {
+      img.addEventListener("load", revealSplash, { once: true });
+      img.addEventListener("error", revealSplash, { once: true });
+      setTimeout(revealSplash, 300);
+    } else {
+      revealSplash();
+    }
+  }
+
   function registerOfflineWorker() {
     if ("serviceWorker" in navigator && window.location.protocol.indexOf("http") === 0) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js?v=5").catch(function () {});
+        navigator.serviceWorker.register("./sw.js?v=6").catch(function () {});
       });
     }
   }
@@ -2209,5 +2289,6 @@
   initChartModalGestures();
   bindGlobalEvents();
   handleRouteChange();
+  initWelcomeSplash();
   registerOfflineWorker();
 })();

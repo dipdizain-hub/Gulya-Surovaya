@@ -9,10 +9,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Книга вязания">
   <title>Книга вязания спицами</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=5">
-  <link rel="apple-touch-icon" href="./assets/icon.svg?v=5">
-  <link rel="manifest" href="./manifest.webmanifest?v=5">
-  <link rel="stylesheet" href="./styles.css?v=5">
+  <link rel="preload" as="image" href="./assets/images/welcome-gulsinya.webp?v=6" type="image/webp">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=6">
+  <link rel="apple-touch-icon" href="./assets/icon.svg?v=6">
+  <link rel="manifest" href="./manifest.webmanifest?v=6">
+  <link rel="stylesheet" href="./styles.css?v=6">
 </head>
 <body>
   <a href="#app-main" class="skip-link">Перейти к содержимому</a>
@@ -122,7 +123,20 @@
   <!-- Ненавязчивое всплывающее уведомление -->
   <div id="toast-region" class="toast-region no-print" role="status" aria-live="polite" hidden></div>
 
-  <script src="./data/articles.js?v=5"></script>
-  <script src="./app.js?v=5"></script>
+  <!-- Приветственная открытка при входе на сайт (плавное появление по центру, закрытие по клику или через 6 сек) -->
+  <div id="welcome-splash" class="welcome-splash no-print" role="dialog" aria-label="Добро пожаловать, Гульсиня">
+    <div class="welcome-splash-glow" aria-hidden="true"></div>
+    <div class="welcome-splash-card">
+      <div class="welcome-splash-float">
+        <picture>
+          <source srcset="./assets/images/welcome-gulsinya.webp?v=6" type="image/webp">
+          <img id="welcome-splash-img" class="welcome-splash-img" src="./assets/images/welcome-gulsinya.png?v=6" alt="Добро пожаловать, Гульсиня" draggable="false">
+        </picture>
+      </div>
+    </div>
+  </div>
+
+  <script src="./data/articles.js?v=6"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 </html>
