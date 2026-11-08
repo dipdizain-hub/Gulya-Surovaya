@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru" data-font-scale="normal" data-theme="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#9B2C2C">
+  <meta name="description" content="Книга вязания спицами — удобный каталог проверенных описаний и схем крупным шрифтом: с озвучкой рядов, умным увеличением схем и встроенным счётчиком рядов.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Книга вязания">
+  <title>Книга вязания спицами — Гуля Суровая</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/icon.svg">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a href="#app-main" class="skip-link">Перейти к содержимому</a>
+
+  <!-- Верхняя панель навигации и настроек чтения (не перекрывает контент, крупные кнопки с подписями) -->
+  <header class="site-header no-print" role="banner">
+    <div class="header-inner">
+      <div id="header-left" class="header-left">
+        <a href="#/" class="brand-link" aria-label="На главную страницу каталога">
+          <img src="./assets/icon.svg" alt="" class="brand-icon" width="44" height="44">
+          <span class="brand-text">
+            <strong class="brand-title">Книга вязания</strong>
+            <span class="brand-sub">Спицами · каталог</span>
+          </span>
+        </a>
+      </div>
+
+      <div class="header-controls" role="group" aria-label="Настройки удобного чтения">
+        <button type="button" id="btn-font-scale" class="ctrl-btn" aria-label="Изменить размер букв">
+          <span class="ctrl-btn-big" aria-hidden="true">А+</span>
+          <span id="font-scale-label" class="ctrl-btn-text">Буквы</span>
+        </button>
+
+        <button type="button" id="btn-theme-toggle" class="ctrl-btn" aria-pressed="false" aria-label="Переключить тёплый вечерний свет экрана">
+          <span id="theme-icon" class="ctrl-btn-icon" aria-hidden="true">🌙</span>
+          <span id="theme-label" class="ctrl-btn-text">Вечерний</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Основная рабочая область (одна колонка, крупный шрифт) -->
+  <main id="app-main" class="app-main" tabindex="-1" aria-live="off">
+    <noscript>
+      <div class="noscript-box">
+        <h2>Пожалуйста, включите JavaScript в настройках браузера</h2>
+        <p>Для отображения каталога схем, счётчика рядов и голосовой озвучки требуется включённый JavaScript.</p>
+      </div>
+    </noscript>
+    <div class="loading-card no-print">Загружаем описания и схемы…</div>
+  </main>
+
+  <!-- Плавающая нижняя панель: Счётчик рядов (показывается внутри описания) -->
+  <aside id="row-counter-dock" class="counter-dock no-print" hidden aria-label="Счётчик связанных рядов">
+    <!-- Заполняется из app.js -->
+  </aside>
+
+  <!-- Полноэкранное окно умного просмотра схемы с линейкой для рядов -->
+  <div id="chart-modal" class="chart-modal no-print" role="dialog" aria-modal="true" aria-labelledby="chart-modal-title" hidden>
+    <div class="chart-modal-header">
+      <div class="chart-modal-heading">
+        <h2 id="chart-modal-title" class="chart-modal-title">Схема узора</h2>
+        <p id="chart-modal-hint" class="chart-modal-hint"></p>
+      </div>
+      <button type="button" id="btn-chart-close" class="btn btn-primary chart-close-btn">
+        ✕ Закрыть схему
+      </button>
+    </div>
+
+    <div id="chart-viewport" class="chart-viewport">
+      <div id="chart-stage" class="chart-stage">
+        <img id="chart-modal-img" src="" alt="" draggable="false">
+      </div>
+
+      <!-- Передвигаемая полупрозрачная линейка-подсветка текущего ряда -->
+      <div id="chart-ruler" class="chart-ruler" hidden>
+        <div class="chart-ruler-band">
+          <span class="chart-ruler-line"></span>
+        </div>
+        <div class="chart-ruler-controls">
+          <span class="chart-ruler-handle" id="chart-ruler-handle">⇅ Линейка ряда (ведите пальцем)</span>
+          <div class="chart-ruler-nudges">
+            <button type="button" id="btn-ruler-up" class="ruler-nudge-btn" aria-label="Поднять линейку на ряд выше">▲ Выше</button>
+            <button type="button" id="btn-ruler-down" class="ruler-nudge-btn" aria-label="Опустить линейку на ряд ниже">▼ Ниже</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-modal-footer">
+      <div class="chart-zoom-bar" role="group" aria-label="Управление масштабом схемы">
+        <button type="button" id="btn-zoom-out" class="chart-tool-btn">− Мельче</button>
+        <button type="button" id="btn-zoom-reset" class="chart-tool-btn"><span id="zoom-pct-label">100%</span> · Вписать</button>
+        <button type="button" id="btn-zoom-in" class="chart-tool-btn">+ Крупнее</button>
+        <button type="button" id="btn-toggle-ruler" class="chart-tool-btn chart-tool-ruler" aria-pressed="true">📏 Линейка</button>
+      </div>
+
+      <!-- Мини-счётчик рядов прямо поверх открытой схемы -->
+      <div id="chart-inline-counter" class="chart-inline-counter">
+        <div class="chart-counter-info">
+          <span id="chart-counter-part" class="chart-counter-part">Счётчик</span>
+          <strong id="chart-counter-val" class="chart-counter-val">Ряд: 0</strong>
+        </div>
+        <div class="chart-counter-btns">
+          <button type="button" id="btn-chart-row-minus" class="chart-cnt-minus" aria-label="Убавить 1 ряд">−1</button>
+          <button type="button" id="btn-chart-row-plus" class="chart-cnt-plus">+1 ряд</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Диалог защиты от случайного сброса счётчика рядов -->
+  <div id="confirm-modal" class="confirm-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden>
+    <div class="confirm-dialog">
+      <h2 id="confirm-title" class="confirm-title">Сбросить счётчик рядов на 0?</h2>
+      <p id="confirm-desc" class="confirm-desc">Текущее значение будет обнулено.</p>
+      <div class="confirm-actions">
+        <button type="button" id="btn-confirm-cancel" class="btn btn-secondary">Нет, оставить как есть</button>
+        <button type="button" id="btn-confirm-yes" class="btn btn-primary">Да, сбросить на 0</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Крупное всплывающее уведомление (тост) -->
+  <div id="toast-region" class="toast-region no-print" role="status" aria-live="polite" hidden></div>
+
+  <script src="./data/articles.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
