@@ -1,15 +1,14 @@
-// Service Worker «Книга вязания спицами» (v2)
-// Мгновенно подгружает свежие обновления при наличии интернета и сохраняет копию для работы офлайн.
+// Service Worker «Книга вязания спицами» (v3 — редизайн 2026)
 
-const CACHE_NAME = "kniga-vyazaniya-v2";
+const CACHE_NAME = "kniga-vyazaniya-v3";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=2",
-  "./app.js?v=2",
-  "./data/articles.js?v=2",
-  "./manifest.webmanifest?v=2",
-  "./assets/icon.svg",
+  "./styles.css?v=3",
+  "./app.js?v=3",
+  "./data/articles.js?v=3",
+  "./manifest.webmanifest?v=3",
+  "./assets/icon.svg?v=3",
   "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
   "./assets/images/noski-s-rastitelnym-uzorom/03.jpg",
