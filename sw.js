@@ -1,28 +1,16 @@
-// Service Worker «Книга вязания спицами» (v6 — приветственная открытка Гульсине)
+// Service Worker «Книга вязания спицами» (v7 — Партия 1 рубрики «Носки и следки», PDF и полноэкранное горизонтальное видео)
 
-const CACHE_NAME = "kniga-vyazaniya-v6";
+const CACHE_NAME = "kniga-vyazaniya-v7";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./styles.css?v=6",
-  "./app.js?v=6",
-  "./data/articles.js?v=6",
-  "./manifest.webmanifest?v=6",
-  "./assets/icon.svg?v=6",
-  "./assets/images/welcome-gulsinya.webp?v=6",
-  "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
-  "./assets/images/noski-s-rastitelnym-uzorom/02.jpg",
-  "./assets/images/noski-s-rastitelnym-uzorom/03.jpg",
-  "./assets/images/shapka-dvukhtsvetnaya-briosh/01.jpg",
-  "./assets/images/shapka-dvukhtsvetnaya-briosh/05.jpg",
-  "./assets/images/shapka-dvukhtsvetnaya-briosh/06.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/cover-variants.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-legend.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-setup.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-flower.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-border-1-2.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-border-3.jpg",
-  "./assets/images/shal-tsvetochnoe-eho/chart-edge.jpg"
+  "./styles.css?v=7",
+  "./app.js?v=7",
+  "./data/articles.js?v=7",
+  "./data/cat-01-batch1.js?v=7",
+  "./manifest.webmanifest?v=7",
+  "./assets/icon.svg?v=7",
+  "./assets/images/welcome-gulsinya.webp?v=7"
 ];
 
 self.addEventListener("install", (event) => {

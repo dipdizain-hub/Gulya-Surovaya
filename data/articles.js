@@ -7,7 +7,7 @@ window.KNITTING_CATALOG = {
     ownerSubtitle: "Личная коллекция проверенных описаний и схем",
     totalArchiveCount: 102,
     pilotNote:
-      "Тестовый запуск: загружены 3 полных описания из 3 рубрик со всеми фотографиями, схемами и PDF-файлами для проверки удобства на телефоне."
+      "Каталог проверенных описаний, схем и оригинальных PDF-файлов крупным шрифтом с голосовым чтением."
   },
 
   categories: [
@@ -18,7 +18,7 @@ window.KNITTING_CATALOG = {
       shortTitle: "Носки и следки",
       description:
         "Бесшовные носки от мыска и от манжеты, ажурные и рельефные узоры, удобные пятки и следки.",
-      archiveCount: 18,
+      archiveCount: 19,
       coverImage: "./assets/images/noski-s-rastitelnym-uzorom/01.jpg",
       accentColor: "#3D6B58"
     },
@@ -34,6 +34,18 @@ window.KNITTING_CATALOG = {
       accentColor: "#3D6B58"
     },
     {
+      id: "03-varezhki",
+      code: "03",
+      title: "Варежки, перчатки, митенки",
+      shortTitle: "Варежки и митенки",
+      description:
+        "Жаккардовые и рельефные варежки, анатомический клин большого пальца, перчатки и митенки.",
+      archiveCount: 19,
+      coverImage: null,
+      comingSoonNote:
+        "В архиве подготовлено 19 описаний. Они будут перенесены в следующих партиях."
+    },
+    {
       id: "04-shali",
       code: "04",
       title: "Манишки, снуды, бактусы и шали",
@@ -45,18 +57,6 @@ window.KNITTING_CATALOG = {
       accentColor: "#3D6B58"
     },
     {
-      id: "03-varezhki",
-      code: "03",
-      title: "Варежки, перчатки, митенки",
-      shortTitle: "Варежки и митенки",
-      description:
-        "Жаккардовые и рельефные варежки, анатомический клин большого пальца, перчатки и митенки.",
-      archiveCount: 19,
-      coverImage: null,
-      comingSoonNote:
-        "В архиве на Google Диске подготовлено 19 описаний. Они будут добавлены следующим этапом после проверки тестовой версии сайта."
-    },
-    {
       id: "05-tehniki",
       code: "05",
       title: "Техники и сложные узоры",
@@ -66,7 +66,7 @@ window.KNITTING_CATALOG = {
       archiveCount: 18,
       coverImage: null,
       comingSoonNote:
-        "В архиве на Google Диске подготовлено 18 мастер-классов. Они будут перенесены на следующем этапе."
+        "В архиве подготовлено 18 мастер-классов. Они будут перенесены в следующих партиях."
     }
   ],
 

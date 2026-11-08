@@ -9,11 +9,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Книга вязания">
   <title>Книга вязания спицами</title>
-  <link rel="preload" as="image" href="./assets/images/welcome-gulsinya.webp?v=6" type="image/webp">
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=6">
-  <link rel="apple-touch-icon" href="./assets/icon.svg?v=6">
-  <link rel="manifest" href="./manifest.webmanifest?v=6">
-  <link rel="stylesheet" href="./styles.css?v=6">
+  <link rel="preload" as="image" href="./assets/images/welcome-gulsinya.webp?v=7" type="image/webp">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=7">
+  <link rel="apple-touch-icon" href="./assets/icon.svg?v=7">
+  <link rel="manifest" href="./manifest.webmanifest?v=7">
+  <link rel="stylesheet" href="./styles.css?v=7">
 </head>
 <body>
   <a href="#app-main" class="skip-link">Перейти к содержимому</a>
@@ -120,6 +120,20 @@
     </div>
   </div>
 
+  <!-- Полноэкранный горизонтальный просмотр YouTube-видео (автоповорот в альбомное положение) -->
+  <div id="video-modal" class="video-modal no-print" role="dialog" aria-modal="true" aria-label="Полноэкранный просмотр видео" hidden>
+    <div id="video-modal-stage" class="video-modal-stage"></div>
+
+    <button type="button" id="btn-video-close" class="video-close-circle" aria-label="Закрыть видео">
+      ✕
+    </button>
+
+    <div class="video-corner-tools" role="group" aria-label="Управление экраном видео">
+      <button type="button" id="btn-video-rotate" class="chart-mini-btn" aria-label="Повернуть видео горизонтально или вертикально">↻</button>
+      <a id="video-external-link" href="#" target="_blank" rel="noopener noreferrer" class="video-ext-pill">YouTube ↗</a>
+    </div>
+  </div>
+
   <!-- Ненавязчивое всплывающее уведомление -->
   <div id="toast-region" class="toast-region no-print" role="status" aria-live="polite" hidden></div>
 
@@ -129,14 +143,15 @@
     <div class="welcome-splash-card">
       <div class="welcome-splash-float">
         <picture>
-          <source srcset="./assets/images/welcome-gulsinya.webp?v=6" type="image/webp">
-          <img id="welcome-splash-img" class="welcome-splash-img" src="./assets/images/welcome-gulsinya.png?v=6" alt="Добро пожаловать, Гульсиня" draggable="false">
+          <source srcset="./assets/images/welcome-gulsinya.webp?v=7" type="image/webp">
+          <img id="welcome-splash-img" class="welcome-splash-img" src="./assets/images/welcome-gulsinya.png?v=7" alt="Добро пожаловать, Гульсиня" draggable="false">
         </picture>
       </div>
     </div>
   </div>
 
-  <script src="./data/articles.js?v=6"></script>
-  <script src="./app.js?v=6"></script>
+  <script src="./data/articles.js?v=7"></script>
+  <script src="./data/cat-01-batch1.js?v=7"></script>
+  <script src="./app.js?v=7"></script>
 </body>
 </html>
